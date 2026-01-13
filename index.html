@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-app="CSVXpressGold" data-ver="1.1.2">
+<html lang="it" data-app="CSVXpressGold" data-ver="1.1.3">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -143,6 +143,63 @@
 
     <section id="preventivi-section" data-zone="preventivi">
       <h2>Preventivi</h2>
+
+      <!-- ✅ ANAGRAFICA (FACOLTATIVA) -->
+      <div class="panel" id="anagrafica-panel">
+        <h3>Anagrafica (facoltativa)</h3>
+
+        <div class="grid">
+          <div>
+            <label>Tipo</label>
+            <select id="anagraficaTipo">
+              <option value="rivenditore" selected>Rivenditore</option>
+              <option value="cliente">Cliente finale</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Azienda</label>
+            <input type="text" id="anagraficaAzienda" placeholder="Ragione sociale">
+          </div>
+
+          <div>
+            <label>Referente</label>
+            <input type="text" id="anagraficaReferente" placeholder="Nome e cognome">
+          </div>
+
+          <div>
+            <label>Email</label>
+            <input type="email" id="anagraficaEmail" placeholder="email@azienda.it">
+          </div>
+
+          <div>
+            <label>Cellulare</label>
+            <input type="tel" id="anagraficaCell" placeholder="+39 ...">
+          </div>
+
+          <div>
+            <label>Indirizzo</label>
+            <input type="text" id="anagraficaIndirizzo" placeholder="Via, n°, CAP, Città (Prov)">
+          </div>
+
+          <div>
+            <label>P.IVA</label>
+            <input type="text" id="anagraficaPiva" placeholder="IT...">
+          </div>
+
+          <div>
+            <label>Codice Fiscale</label>
+            <input type="text" id="anagraficaCf" placeholder="CF...">
+          </div>
+
+          <div style="grid-column:1/-1">
+            <label>Note</label>
+            <input type="text" id="anagraficaNote" placeholder="Note (facoltative)">
+          </div>
+        </div>
+
+        <div class="mini">Puoi lasciare tutto vuoto: i preventivi si generano comunque.</div>
+      </div>
 
       <div class="panel">
         <h3>Sconto Cliente Finale (calcolo inverso)</h3>
