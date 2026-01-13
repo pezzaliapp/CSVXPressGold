@@ -1,9 +1,8 @@
 // ===============================
 // CSVXpressGold — app.js (FULL)
-// Preventivi (Riv/Cliente) + Margine + Noleggio + TXT
-// + Sconto Cliente Finale (inverso) selezionabile
-// + Anagrafica (opzionale) salvata in localStorage
-// + SERVIZI NASCOSTI OVUNQUE (trasporto/installazione non visibili)
+// Tabella: servizi VISIBILI e modificabili
+// Preventivo Cliente: servizi INCLUSI ma NON mostrati
+// Preventivo Riv: servizi opzionali (toggleMostraServizi)
 // ===============================
 
 // Service Worker
@@ -43,82 +42,13 @@ function debounce(fn, ms){
 }
 
 // ===============================
-// SERVIZI: NASCONDILI IN UI (robusto: cerca header per testo)
-// ===============================
-function hideServiziUI(){
-  // Disattiva toggleMostraServizi se esiste
-  var tms = byId("toggleMostraServizi");
-  if (tms){
-    try { tms.checked = false; } catch(e){}
-    tms.disabled = true;
-    // se è dentro un contenitore, nascondilo
-    try { (tms.closest ? tms.closest("label") : null) && (tms.closest("label").style.display="none"); } catch(e){}
-  }
-
-  // Nascondi eventuali elementi dedicati ai servizi
-  var idsToHide = [
-    "toggleMostraServizi",
-    "serviziBox",
-    "serviziPanel",
-    "serviziRow"
-  ];
-  for (var i=0;i<idsToHide.length;i++){
-    var el = byId(idsToHide[i]);
-    if (el) el.style.display = "none";
-  }
-
-  // Nascondi colonne nella tabella articoli: Trasporto / Installazione / Servizi
-  var table = document.querySelector("#articoli-table");
-  if (!table) return;
-
-  var ths = table.querySelectorAll("thead th");
-  if (!ths || !ths.length) return;
-
-  var hideIdx = [];
-  for (var k=0;k<ths.length;k++){
-    var txt = (ths[k].textContent || "").toLowerCase();
-    if (txt.indexOf("trasporto")>-1 || txt.indexOf("install")>-1 || txt.indexOf("servizi")>-1){
-      hideIdx.push(k);
-      ths[k].style.display = "none";
-    }
-  }
-
-  if (!hideIdx.length) return;
-
-  // nascondi anche le celle di quelle colonne
-  var rows = table.querySelectorAll("tr");
-  for (var r=0;r<rows.length;r++){
-    var cells = rows[r].children;
-    for (var h=0;h<hideIdx.length;h++){
-      var idx = hideIdx[h];
-      if (cells && cells[idx]) cells[idx].style.display = "none";
-    }
-  }
-}
-
-// ===============================
-// ANAGRAFICA (opzionale) — usa i campi già presenti in index.html
+// ANAGRAFICA (opzionale) — usa i campi presenti in index.html
 // ===============================
 var ANAG_KEY = "csvxpressgold_anagrafica_v2";
-
-function anagIds(){
-  return [
-    "anagraficaTipo",
-    "anagraficaAzienda",
-    "anagraficaReferente",
-    "anagraficaEmail",
-    "anagraficaCell",
-    "anagraficaIndirizzo",
-    "anagraficaPiva",
-    "anagraficaCf",
-    "anagraficaNote"
-  ];
-}
 
 function hasAnagraficaUI(){
   return !!byId("anagraficaAzienda");
 }
-
 function getAnagraficaFromUI(){
   function val(id){ var el=byId(id); return el ? (el.value||"").trim() : ""; }
   return {
@@ -133,7 +63,6 @@ function getAnagraficaFromUI(){
     note: val("anagraficaNote")
   };
 }
-
 function setAnagraficaToUI(data, clear){
   data = data || {};
   function set(id, v){
@@ -151,14 +80,12 @@ function setAnagraficaToUI(data, clear){
   set("anagraficaCf", data.cf);
   set("anagraficaNote", data.note);
 }
-
 function saveAnagrafica(){
   if (!hasAnagraficaUI()) return;
   try{
     localStorage.setItem(ANAG_KEY, JSON.stringify(getAnagraficaFromUI()));
   }catch(e){}
 }
-
 function loadAnagrafica(clear){
   if (!hasAnagraficaUI()) return;
   try{
@@ -168,17 +95,16 @@ function loadAnagrafica(clear){
     setAnagraficaToUI(JSON.parse(raw), false);
   }catch(e){}
 }
-
 function bindAnagraficaAutosave(){
   if (!hasAnagraficaUI()) return;
 
-  // carica all'avvio
   loadAnagrafica(false);
 
-  // autosave
-  var ids = anagIds();
+  var ids = [
+    "anagraficaTipo","anagraficaAzienda","anagraficaReferente","anagraficaEmail",
+    "anagraficaCell","anagraficaIndirizzo","anagraficaPiva","anagraficaCf","anagraficaNote"
+  ];
   var saver = debounce(saveAnagrafica, 300);
-
   for (var i=0;i<ids.length;i++){
     (function(id){
       var el = byId(id);
@@ -188,105 +114,108 @@ function bindAnagraficaAutosave(){
     })(ids[i]);
   }
 }
-
 function getAnagraficaForVariant(variant){
   if (!hasAnagraficaUI()) return {};
   var a = getAnagraficaFromUI();
   a._label = (a.tipo === "cliente") ? "Cliente finale" : "Rivenditore";
-  a._prefer = (a.tipo === "cliente") ? "cli" : "riv";
   a._variant = variant;
   return a;
 }
+
 // ===============================
 // Bootstrap
 // ===============================
 document.addEventListener("DOMContentLoaded", function () {
-
-  // badge versione (se presente)
+  // badge versione
   try {
     var VER = document.documentElement.getAttribute('data-ver') || 'dev';
-    var badge = document.getElementById("verBadge");
+    var badge = byId("verBadge");
     if (badge) badge.textContent = "ver " + VER;
   } catch(e) {}
 
-  // Nascondi servizi ovunque
-  hideServiziUI();
-
-  // Anagrafica: bind (usa i campi presenti in index.html)
   bindAnagraficaAutosave();
 
-  // Pulsanti anagrafica (se presenti in index.html)
-  var btnSave = byId("btnSaveAnagrafica");
-  if (btnSave) btnSave.addEventListener("click", saveAnagrafica, false);
+  var csvInput = byId("csvFileInput");
+  if (csvInput) csvInput.addEventListener("change", handleCSVUpload, false);
 
-  var btnClear = byId("btnClearAnagrafica");
-  if (btnClear) btnClear.addEventListener("click", function(){
-    try{ localStorage.removeItem(ANAG_KEY); }catch(e){}
-    loadAnagrafica(true);
-  }, false);
+  var search = byId("searchListino");
+  if (search) search.addEventListener("input", aggiornaListinoSelect, false);
 
-  byId("csvFileInput").addEventListener("change", handleCSVUpload, false);
-  byId("searchListino").addEventListener("input", aggiornaListinoSelect, false);
+  var btnAdd = byId("btnAddFromListino");
+  if (btnAdd) btnAdd.addEventListener("click", aggiungiArticoloDaListino, false);
 
-  byId("btnAddFromListino").addEventListener("click", aggiungiArticoloDaListino, false);
-  byId("btnManual").addEventListener("click", mostraFormArticoloManuale, false);
+  var btnManual = byId("btnManual");
+  if (btnManual) btnManual.addEventListener("click", mostraFormArticoloManuale, false);
 
-  byId("toggleCosti").addEventListener("change", function(){
-    autoPopolaCosti = byId("toggleCosti").checked;
+  var toggleCosti = byId("toggleCosti");
+  if (toggleCosti){
+    autoPopolaCosti = !!toggleCosti.checked;
+    toggleCosti.addEventListener("change", function(){
+      autoPopolaCosti = !!toggleCosti.checked;
 
-    // se disattivi autopolpa, azzera i costi (anche se nascosti)
-    for (var i=0;i<articoliAggiunti.length;i++){
-      var a = articoliAggiunti[i];
-      if (!autoPopolaCosti){
-        a.costoTrasporto = 0;
-        a.costoInstallazione = 0;
-      } else {
-        var base = trovaInListino(a.codice);
-        if (base){
-          a.costoTrasporto = base.costoTrasporto || 0;
-          a.costoInstallazione = base.costoInstallazione || 0;
+      // Se OFF -> azzera servizi su tutte le righe
+      // Se ON  -> ripristina servizi da listino (se trovati), altrimenti mantiene il valore attuale
+      for (var i=0;i<articoliAggiunti.length;i++){
+        var a = articoliAggiunti[i];
+        if (!autoPopolaCosti){
+          a.costoTrasporto = 0;
+          a.costoInstallazione = 0;
+        } else {
+          var base = trovaInListino(a.codice);
+          if (base){
+            a.costoTrasporto = n(base.costoTrasporto);
+            a.costoInstallazione = n(base.costoInstallazione);
+          }
         }
       }
-    }
 
-    aggiornaTabellaArticoli();
-    aggiornaTotaliGenerali();
-    aggiornaBoxNoleggio();
+      aggiornaTabellaArticoli();
+      aggiornaTotaliGenerali();
+      aggiornaBoxNoleggio();
+    }, false);
+  }
 
-    // ri-applica hide colonne dopo rerender
-    hideServiziUI();
-  }, false);
+  // Report
+  var btnWA = byId("btnWA");
+  if (btnWA) btnWA.addEventListener("click", inviaReportWhatsApp, false);
 
-  byId("btnWA").addEventListener("click", inviaReportWhatsApp, false);
-  byId("btnTXT").addEventListener("click", generaTXTReport, false);
+  var btnTXT = byId("btnTXT");
+  if (btnTXT) btnTXT.addEventListener("click", generaTXTReport, false);
 
-  byId("btnWASenzaMargine").addEventListener("click", inviaReportWhatsAppSenzaMargine, false);
-  byId("btnTXTSenzaMargine").addEventListener("click", generaTXTReportSenzaMargine, false);
+  var btnWAnm = byId("btnWASenzaMargine");
+  if (btnWAnm) btnWAnm.addEventListener("click", inviaReportWhatsAppSenzaMargine, false);
 
-  byId("btnPrevRiv").addEventListener("click", function(){ apriPreventivo('riv'); }, false);
-  byId("btnPrevCli").addEventListener("click", function(){ apriPreventivo('cli'); }, false);
+  var btnTXTnm = byId("btnTXTSenzaMargine");
+  if (btnTXTnm) btnTXTnm.addEventListener("click", generaTXTReportSenzaMargine, false);
 
-  // NOLEGGIO UI
+  // Preventivi
+  var btnPrevR = byId("btnPrevRiv");
+  if (btnPrevR) btnPrevR.addEventListener("click", function(){ apriPreventivo('riv'); }, false);
+
+  var btnPrevC = byId("btnPrevCli");
+  if (btnPrevC) btnPrevC.addEventListener("click", function(){ apriPreventivo('cli'); }, false);
+
+  // Noleggio
   var selDur = byId("noleggioDurata");
   if (selDur) selDur.addEventListener("change", aggiornaBoxNoleggio, false);
 
   var btnNT = byId("btnNoleggioTXT");
   if (btnNT) btnNT.addEventListener("click", scaricaNoleggioTXT, false);
 
-  byId("margineCliDefault").addEventListener("input", function(){ aggiornaBoxNoleggio(); }, false);
-  byId("margineRivDefault").addEventListener("input", function(){ aggiornaBoxNoleggio(); }, false);
+  var mCli = byId("margineCliDefault");
+  if (mCli) mCli.addEventListener("input", aggiornaBoxNoleggio, false);
+
+  var mRiv = byId("margineRivDefault");
+  if (mRiv) mRiv.addEventListener("input", aggiornaBoxNoleggio, false);
 
   var radios = document.getElementsByName("scontoClienteMode");
   for (var r=0;r<radios.length;r++){
-    radios[r].addEventListener("change", function(){ aggiornaBoxNoleggio(); }, false);
+    radios[r].addEventListener("change", aggiornaBoxNoleggio, false);
   }
 
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
   aggiornaBoxNoleggio();
-
-  // ultima passata per nascondere colonne appena create
-  hideServiziUI();
 });
 
 // ===============================
@@ -299,7 +228,6 @@ function getScontoClienteMode(){
   }
   return "bene";
 }
-
 // calcola sconto% inverso
 function calcScontoClientePerc(prezzoLordo, prezzoClienteUnit, serviziUnit){
   var mode = getScontoClienteMode();
@@ -322,6 +250,7 @@ function calcScontoClientePerc(prezzoLordo, prezzoClienteUnit, serviziUnit){
   if (s > 99.99) s = 99.99;
   return roundTwo(s);
 }
+
 // ===============================
 // CSV upload
 // ===============================
@@ -372,7 +301,6 @@ function handleCSVUpload(event) {
       if (errEl2) errEl2.style.display = "none";
 
       aggiornaListinoSelect();
-      hideServiziUI();
     },
     error: function(err) {
       var ms2 = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
@@ -390,7 +318,7 @@ function handleCSVUpload(event) {
 function aggiornaListinoSelect() {
   var select = byId("listinoSelect");
   if (!select) return;
-  var searchTerm = (byId("searchListino").value || "").toLowerCase();
+  var searchTerm = ((byId("searchListino") && byId("searchListino").value) || "").toLowerCase();
   select.innerHTML = "";
 
   for (var i=0;i<listino.length;i++){
@@ -402,7 +330,7 @@ function aggiornaListinoSelect() {
     if (hit){
       var option = createEl("option");
       option.value = item.codice;
-      option.textContent = item.codice + " - " + item.descrizione + " - €" + item.prezzoLordo.toFixed(2);
+      option.textContent = item.codice + " - " + item.descrizione + " - €" + n(item.prezzoLordo).toFixed(2);
       select.appendChild(option);
     }
   }
@@ -436,7 +364,6 @@ function aggiungiArticoloDaListino() {
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
   aggiornaBoxNoleggio();
-  hideServiziUI();
 }
 
 // ===============================
@@ -448,24 +375,22 @@ function calcNetto(a){
   var lordo = n(a.prezzoLordo);
   return roundTwo(lordo * (1 - s1/100) * (1 - s2/100));
 }
-
 function calcPrezzoConMargine(netto, marginePerc){
   marginePerc = n(marginePerc);
   if (marginePerc <= 0) return roundTwo(netto);
   if (marginePerc >= 99.99) marginePerc = 99.99;
   return roundTwo(netto / (1 - marginePerc/100));
 }
-
 function getMargineRiv(a){
   var m = n(a.margine);
   if (m > 0) return m;
-  return n(byId("margineRivDefault").value);
+  var def = byId("margineRivDefault");
+  return def ? n(def.value) : 0;
 }
-
 function getMargineCli(){
-  return n(byId("margineCliDefault").value);
+  var def = byId("margineCliDefault");
+  return def ? n(def.value) : 0;
 }
-
 // ===============================
 // Tabella articoli
 // ===============================
@@ -489,12 +414,12 @@ function aggiornaTabellaArticoli() {
     var a = articoliAggiunti[i];
 
     var netto = calcNetto(a);
-    var mRiv = getMargineRiv(a);
-    var prezzoRiv = calcPrezzoConMargine(netto, mRiv);
+    var prezzoRiv = calcPrezzoConMargine(netto, getMargineRiv(a));
 
     var q = clampMin(n(a.quantita), 1);
+    q = Math.round(q);
 
-    // servizi unitari
+    // servizi unitari (VISIBILI)
     var trp  = n(a.costoTrasporto);
     var inst = n(a.costoInstallazione);
     var serv = trp + inst;
@@ -506,7 +431,7 @@ function aggiornaTabellaArticoli() {
 
     var tr = createEl("tr");
     tr.innerHTML =
-      // ordine IDENTICO al THEAD di index.html
+      // ordine IDENTICO al THEAD in index.html
       "<td>" + esc(a.codice) + "</td>" +
       "<td>" + esc(a.descrizione) + "</td>" +
       "<td>" + n(a.prezzoLordo).toFixed(2) + "€</td>" +
@@ -530,19 +455,16 @@ function aggiornaCampo(event) {
   var input = event.target;
   var index = parseInt(input.getAttribute("data-index"),10);
   var field = input.getAttribute("data-field");
-
   var val = n(input.value);
 
-  // clamp
   if (field === "quantita") {
     if (val < 1) val = 1;
-    val = Math.round(val); // quantità intera
+    val = Math.round(val);
   } else {
-    if (field==="sconto" || field==="sconto2" || field==="margine" || field==="costoTrasporto" || field==="costoInstallazione" || field==="venduto"){
-      if (val < 0) val = 0;
-    }
+    if (val < 0) val = 0;
   }
 
+  if (!articoliAggiunti[index]) return;
   articoliAggiunti[index][field] = val;
 
   aggiornaTabellaArticoli();
@@ -570,6 +492,7 @@ function aggiornaTotaliGenerali() {
   for (var i=0;i<articoliAggiunti.length;i++){
     var a = articoliAggiunti[i];
     var q = clampMin(n(a.quantita), 1);
+    q = Math.round(q);
 
     var netto = calcNetto(a);
     var prezzoRiv = calcPrezzoConMargine(netto, getMargineRiv(a));
@@ -611,7 +534,7 @@ function mostraFormArticoloManuale() {
   var tr = createEl("tr");
   tr.id = "manual-input-row";
 
-  // ordine IDENTICO al THEAD di index.html
+  // ordine IDENTICO al THEAD in index.html
   tr.innerHTML =
     "<td><input type='text' id='manualCodice' placeholder='Codice'></td>" +
     "<td><input type='text' id='manualDescrizione' placeholder='Descrizione'></td>" +
@@ -654,7 +577,7 @@ function calcolaRigaManuale(){
   var vend = n(byId("manualVenduto").value);
 
   var netto = roundTwo(prezzoLordo * (1 - s1/100) * (1 - s2/100));
-  var mEff = (m > 0) ? m : n(byId("margineRivDefault").value);
+  var mEff = (m > 0) ? m : (byId("margineRivDefault") ? n(byId("margineRivDefault").value) : 0);
 
   var prezzoRiv = calcPrezzoConMargine(netto, mEff);
   var totRiv = roundTwo((prezzoRiv + trp + inst) * q);
@@ -681,7 +604,6 @@ function aggiungiArticoloManuale(){
     venduto: n(byId("manualVenduto").value)
   };
 
-  // se non autopopolo, lascio comunque i campi editabili ma default a 0
   if (!autoPopolaCosti){
     nuovo.costoTrasporto = 0;
     nuovo.costoInstallazione = 0;
@@ -697,11 +619,13 @@ function aggiungiArticoloManuale(){
 function annullaArticoloManuale(){
   var row = byId("manual-input-row");
   if (row && row.parentNode) row.parentNode.removeChild(row);
-}// ===============================
-// Report TXT / WhatsApp (SERVIZI opzionali nei report)
+}
+// ===============================
+// Report TXT / WhatsApp
+// - servizi stampati solo se toggleMostraServizi ON
 // ===============================
 function generaReportTesto(includeMargine){
-  var showServ = byId("toggleMostraServizi") && byId("toggleMostraServizi").checked && autoPopolaCosti;
+  var showServ = (byId("toggleMostraServizi") && byId("toggleMostraServizi").checked);
 
   var report = includeMargine
     ? "Report Articoli (Rivenditore - con Margine)\n\n"
@@ -712,13 +636,16 @@ function generaReportTesto(includeMargine){
   for (var i=0;i<articoliAggiunti.length;i++){
     var a = articoliAggiunti[i];
     var q = clampMin(n(a.quantita), 1);
+    q = Math.round(q);
 
     var lordo = n(a.prezzoLordo);
     var s1 = n(a.sconto);
     var s2 = n(a.sconto2);
     var netto = calcNetto(a);
 
-    var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
+    var trp = n(a.costoTrasporto);
+    var inst = n(a.costoInstallazione);
+    var serv = trp + inst;
 
     var linea = 0;
     if (includeMargine){
@@ -736,7 +663,7 @@ function generaReportTesto(includeMargine){
     report += "Netto: " + netto.toFixed(2) + "€ | Q.tà: " + q + "\n";
     if (includeMargine) report += "Margine%: " + getMargineRiv(a).toFixed(2) + "\n";
     if (showServ){
-      report += "Trasporto: " + n(a.costoTrasporto).toFixed(2) + "€ | Installazione: " + n(a.costoInstallazione).toFixed(2) + "€\n";
+      report += "Trasporto: " + trp.toFixed(2) + "€ | Installazione: " + inst.toFixed(2) + "€\n";
     }
     report += "Totale Riga: " + linea.toFixed(2) + "€\n\n";
   }
@@ -781,24 +708,23 @@ function generaTXTReportSenzaMargine(){
 }
 
 // ===============================
-// Preventivi stampabili (Riv / Cliente Finale) + Box Noleggio + Anagrafica
-// - Cliente finale: NON mostra servizi, NON mostra margine, ma li include nel "Netto cliente"
-// - Rivenditore: servizi opzionali (toggleMostraServizi) e margine visibile
+// Preventivi stampabili (Riv / Cliente Finale)
+// - Cliente: servizi inclusi nei calcoli ma NON mostrati
+// - Riv: servizi mostrabili se toggleMostraServizi ON
 // ===============================
 function apriPreventivo(variant){
   if (window.track && window.track.open_preventivo) window.track.open_preventivo({ variant: variant });
 
   var mostraIVA = byId("preventivoMostraIVA") && byId("preventivoMostraIVA").checked;
   var mostraUnit = byId("preventivoPrezziUnitari") && byId("preventivoPrezziUnitari").checked;
-  var ivaPerc = n(byId("ivaPerc").value);
+  var ivaPerc = byId("ivaPerc") ? n(byId("ivaPerc").value) : 0;
 
   var titolo = (variant === 'cli') ? "Preventivo Cliente Finale" : "Preventivo Rivenditore";
   var margineCli = getMargineCli();
   var ana = getAnagraficaForVariant(variant);
 
-  // Servizi visibili solo su preventivo riv (opzionale)
-  var showServRiv = (byId("toggleMostraServizi") && byId("toggleMostraServizi").checked);
-  var mostraServiziInStampa = (variant === 'riv') ? showServRiv : false;
+  // servizi visibili SOLO su riv (opzionale)
+  var mostraServiziInStampa = (variant === 'riv') && (byId("toggleMostraServizi") && byId("toggleMostraServizi").checked);
 
   var rowsHtml = "";
   var tot = 0;
@@ -806,51 +732,40 @@ function apriPreventivo(variant){
   for (var i=0;i<articoliAggiunti.length;i++){
     var a = articoliAggiunti[i];
     var q = clampMin(n(a.quantita), 1);
+    q = Math.round(q);
 
     var lordoBene = n(a.prezzoLordo);
-    var s1 = n(a.sconto);
-    var s2 = n(a.sconto2);
 
-    // Netto bene dopo S1+S2
     var nettoBene = calcNetto(a);
 
-    // Servizi unitari (sempre inclusi nei calcoli)
     var trasporto = n(a.costoTrasporto);
     var installazione = n(a.costoInstallazione);
     var servUnit = trasporto + installazione;
 
-    // Prezzo unitario base (solo bene, senza servizi)
     var prezzoUnitBase = 0;
     if (variant === 'cli'){
-      // cliente finale: applichi il margine al netto bene
       prezzoUnitBase = calcPrezzoConMargine(nettoBene, margineCli);
     } else {
-      // rivenditore: margine per riga o default
       prezzoUnitBase = calcPrezzoConMargine(nettoBene, getMargineRiv(a));
     }
 
-    // "Netto" mostrato:
-    // - cli: netto cliente = (netto bene + margine) + servizi (servizi NON mostrati)
-    // - riv: netto bene (dopo sconti)
+    // Netto mostrato:
+    // - cli: (bene+margine) + servizi, ma servizi NON in colonna
+    // - riv: netto bene
     var nettoMostratoUnit = (variant === 'cli')
       ? roundTwo(prezzoUnitBase + servUnit)
       : roundTwo(nettoBene);
 
-    // Sconto mostrato:
-    // - cli: sconto inverso dal lordo bene al netto cliente (coerente con esempio)
-    // - riv: S1 + S2
+    // sconto mostrato
     var scontoTxt = "";
     if (variant === 'cli'){
-      // usa la funzione già presente: include o meno i servizi in base alla modalità scelta
       var sInv = calcScontoClientePerc(lordoBene, nettoMostratoUnit, servUnit);
       scontoTxt = sInv.toFixed(2) + "%";
     } else {
-      scontoTxt = s1.toFixed(2) + "% + " + s2.toFixed(2) + "%";
+      scontoTxt = n(a.sconto).toFixed(2) + "% + " + n(a.sconto2).toFixed(2) + "%";
     }
 
     // Totale riga:
-    // - cli: netto cliente * q (servizi inclusi ma non visibili)
-    // - riv: (prezzoUnitBase + servizi) * q
     var totaleRiga = 0;
     if (variant === 'cli'){
       totaleRiga = roundTwo(nettoMostratoUnit * q);
@@ -868,8 +783,6 @@ function apriPreventivo(variant){
     rowsHtml += "<td>" + nettoMostratoUnit.toFixed(2) + "€</td>";
 
     if (mostraUnit){
-      // - cli: mostra SOLO il prezzo finale unitario (netto cliente)
-      // - riv: mostra prezzo unitario base (bene, senza servizi)
       rowsHtml += "<td>" + (variant === 'cli' ? nettoMostratoUnit.toFixed(2) : prezzoUnitBase.toFixed(2)) + "€</td>";
     }
 
@@ -905,7 +818,7 @@ function apriPreventivo(variant){
   html += "<h1>" + esc(titolo) + "</h1>";
   html += "<div class='sub'>Generato da CSVXpressGold — " + new Date().toLocaleString() + "</div>";
 
-  // Anagrafica (mostra solo se c'è qualcosa)
+  // anagrafica (solo se valorizzata)
   var hasAny = (ana.azienda||ana.referente||ana.indirizzo||ana.email||ana.cell||ana.piva||ana.cf||ana.note);
   if (hasAny){
     html += "<div class='box'>";
@@ -921,9 +834,9 @@ function apriPreventivo(variant){
     html += "</div>";
   }
 
-  // ✅ Nel preventivo cliente NON mostrare margine/sconto-mode
   if (variant === 'riv'){
-    html += "<div class='sub'><b>Margine Rivenditore:</b> per riga (o default " + n(byId('margineRivDefault').value).toFixed(2) + "%) — <b>Sconto mostrato:</b> S1 + S2</div>";
+    var defM = byId("margineRivDefault") ? n(byId("margineRivDefault").value).toFixed(2) : "0.00";
+    html += "<div class='sub'><b>Margine Rivenditore:</b> per riga (o default " + defM + "%) — <b>Sconto mostrato:</b> S1 + S2</div>";
   }
 
   html += "<table><thead><tr>";
@@ -970,7 +883,7 @@ function apriPreventivo(variant){
 }
 
 // ===============================
-// NOLEGGIO (tabella coefficienti + spese) — invariato
+// NOLEGGIO
 // ===============================
 function formatNumberIT(value) {
   value = (typeof value === "number") ? value : n(value);
@@ -980,7 +893,6 @@ function formatNumberIT(value) {
     return value.toFixed(2).replace('.', ',');
   }
 }
-
 function calcolaSpeseContratto(importo) {
   if (importo < 5001) return 75;
   if (importo < 10001) return 100;
@@ -988,7 +900,6 @@ function calcolaSpeseContratto(importo) {
   if (importo < 50001) return 225;
   return 300;
 }
-
 function calcolaCanoniPerDurate(importo) {
   var coefficienti = {
     5000:   { 12: 0.081123, 18: 0.058239, 24: 0.045554, 36: 0.032359, 48: 0.025445, 60: 0.021358 },
@@ -1012,7 +923,6 @@ function calcolaCanoniPerDurate(importo) {
   }
   return result;
 }
-
 function calcolaNoleggio(importoImponibile, durataMesi){
   var importo = n(importoImponibile);
   durataMesi = parseInt(durataMesi, 10) || 24;
@@ -1036,6 +946,8 @@ function getTotaleImponibileDaArticoli(variant){
   for (var i=0;i<articoliAggiunti.length;i++){
     var a = articoliAggiunti[i];
     var q = clampMin(n(a.quantita), 1);
+    q = Math.round(q);
+
     var netto = calcNetto(a);
 
     var prezzoUnit = 0;
