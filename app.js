@@ -443,7 +443,7 @@ function aggiornaTabellaArticoli() {
   getMargineRiv(a),   // 👈 mostra il margine reale usato
   { min: 0, step: 0.01 }
 ) +
-      "<td>" + netto.toFixed(2) + "€</td>" +
+      "<td>" + prezzoRiv.toFixed(2) + "€</td>" +
       tdInp(i,"costoTrasporto", trp, { min: 0, step: 0.01 }) +
       tdInp(i,"costoInstallazione", inst, { min: 0, step: 0.01 }) +
       tdInp(i,"quantita", q, { min: 1, step: 1 }) +
