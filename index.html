@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="it" data-app="CSVXpressGold" data-ver="1.0.0">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>CSVXpressGold</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b1220">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Google Analytics 4 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QZ7CQDJX3E"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QZ7CQDJX3E', { anonymize_ip: true });
+  </script>
+
+  <!-- Microsoft Clarity -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r); t.async=1; t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "uy8owdlf8z");
+  </script>
+</head>
+
+<body>
+  <header data-zone="header">
+    <div class="logo-container">
+      <!-- aggiorna i file icona in /icon -->
+      <img src="icon/CSVXpressGold-1024.png" alt="CSVXpressGold Logo" class="logo">
+      <div class="head-txt">
+        <h1>CSVXpressGold</h1>
+        <div class="sub">Preventivi Rivenditore & Cliente Finale — Margine</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="upload-section" data-zone="upload_csv">
+      <h2>Carica Listino CSV</h2>
+      <input type="file" id="csvFileInput" accept=".csv">
+      <p class="hint">Colonne attese: Codice, Descrizione, PrezzoLordo, CostoTrasporto, CostoInstallazione</p>
+      <p id="csvError" class="err" style="display:none;">Errore nel caricamento del file CSV.</p>
+
+      <div class="row">
+        <label class="check">
+          <input type="checkbox" id="toggleCosti" checked>
+          Popola automaticamente Trasporto e Installazione
+        </label>
+        <label class="check">
+          <input type="checkbox" id="toggleMostraServizi" checked>
+          Mostra Trasporto/Installazione nei report
+        </label>
+      </div>
+    </section>
+
+    <section id="listino-section" data-zone="selezione_listino">
+      <h2>Filtra e Seleziona Articolo dal Listino</h2>
+      <label for="searchListino">Cerca:</label>
+      <input type="text" id="searchListino" placeholder="Inserisci codice o descrizione">
+      <select id="listinoSelect"></select>
+
+      <div class="row">
+        <button id="btnAddFromListino" type="button">Aggiungi Articolo Selezionato</button>
+        <button id="btnManual" type="button" class="secondary">Aggiungi Articolo Manualmente</button>
+      </div>
+    </section>
+
+    <section id="articoli-section" data-zone="tabella_articoli">
+      <h2>Articoli Aggiunti</h2>
+
+      <div class="panel">
+        <h3>Settaggi Preventivo</h3>
+        <div class="grid">
+          <div>
+            <label>Margine Rivenditore % (default)</label>
+            <input type="number" id="margineRivDefault" value="20" step="0.01" min="0">
+            <div class="mini">Usato se una riga ha Margine% vuoto/0.</div>
+          </div>
+
+          <div>
+            <label>Margine Cliente Finale % (default)</label>
+            <input type="number" id="margineCliDefault" value="35" step="0.01" min="0">
+            <div class="mini">Applicato al netto scontato (come margine).</div>
+          </div>
+
+          <div>
+            <label>IVA %</label>
+            <input type="number" id="ivaPerc" value="22" step="0.01" min="0">
+            <div class="mini">Opzionale nei preventivi stampabili.</div>
+          </div>
+
+          <div class="checkline">
+            <label class="check">
+              <input type="checkbox" id="preventivoMostraIVA" checked>
+              Mostra IVA nei preventivi
+            </label>
+            <label class="check">
+              <input type="checkbox" id="preventivoPrezziUnitari" checked>
+              Mostra prezzi unitari
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <table id="articoli-table" border="1">
+        <thead>
+          <tr>
+            <th>Codice</th>
+            <th>Descrizione</th>
+            <th>Prezzo Lordo</th>
+            <th>Sconto 1%</th>
+            <th>Sconto 2%</th>
+            <th>Margine %</th>
+            <th>Netto</th>
+            <th>Trasporto</th>
+            <th>Installazione</th>
+            <th>Q.tà</th>
+            <th>Tot. Riv</th>
+            <th>Venduto A €</th>
+            <th>Diff</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="totali-section" data-zone="totali">
+      <div id="totaleGenerale"></div>
+    </section>
+
+    <section id="preventivi-section" data-zone="preventivi">
+      <h2>Preventivi</h2>
+      <div class="row">
+        <button id="btnPrevRiv" type="button">Apri Preventivo Rivenditore (Stampa)</button>
+        <button id="btnPrevCli" type="button">Apri Preventivo Cliente Finale (Stampa)</button>
+      </div>
+      <p class="hint">
+        Consiglio: su iPhone/iPad usa “Condividi → Stampa → PDF” (è il modo più stabile).
+      </p>
+    </section>
+
+    <section id="report-section" data-zone="report_export">
+      <h2>Report Articoli</h2>
+      <div class="row">
+        <button id="btnWA" type="button">Invia Report su WhatsApp</button>
+        <button id="btnTXT" type="button" class="secondary">Genera TXT Report</button>
+      </div>
+
+      <div class="row">
+        <button id="btnWASenzaMargine" type="button">WhatsApp (senza Margine)</button>
+        <button id="btnTXTSenzaMargine" type="button" class="secondary">TXT (senza Margine)</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Librerie -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+  <!-- Tracking bridge (GA4 + Clarity) -->
+  <script>
+    (function () {
+      var APP = document.documentElement.getAttribute('data-app') || 'CSVXpressGold';
+      var VER = document.documentElement.getAttribute('data-ver') || 'dev';
+
+      function safeGtag(eventName, params) {
+        try { if (typeof window.gtag === 'function') window.gtag('event', eventName, params); } catch (_) {}
+      }
+
+      function safeClarity(eventName, params) {
+        try {
+          if (typeof window.clarity === 'function') {
+            window.clarity('event', eventName);
+            if (params && typeof params === 'object') {
+              for (var k in params) {
+                if (params.hasOwnProperty(k)) window.clarity('set', eventName + "_" + k, String(params[k]));
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      function fpFromFile(file) {
+        if (!file) return undefined;
+        return file.name + "|" + file.size + "|" + file.lastModified;
+      }
+
+      function send(eventName, params) {
+        params = params || {};
+        var payload = { app: APP, ver: VER, page: location.pathname };
+        for (var k in params) if (params.hasOwnProperty(k)) payload[k] = params[k];
+        safeGtag(eventName, payload);
+        safeClarity(eventName, payload);
+      }
+
+      window.track = {
+        zone_view: function(zone){ send('zone_view', { zone: zone }); },
+
+        csv_upload_start: function(o){ o=o||{}; send('csv_upload_start', { method: o.method }); },
+        csv_upload_ok: function(o){ o=o||{}; send('csv_upload_ok', { method: o.method, file_name: o.file && o.file.name, file_size: o.file && o.file.size, fp: fpFromFile(o.file) }); },
+
+        csv_parse_ok: function(o){ o=o||{}; send('csv_parse_ok', { rows: o.rows, cols: o.cols, parse_ms: o.ms }); },
+        csv_parse_error: function(o){ o=o||{}; send('csv_parse_error', { error_code: o.code || 'parse_error', parse_ms: o.ms }); },
+
+        add_item_listino: function(){ send('add_item_listino', {}); },
+        add_item_manual: function(){ send('add_item_manual', {}); },
+        remove_item: function(){ send('remove_item', {}); },
+
+        report_whatsapp: function(o){ o=o||{}; send('report_whatsapp', { variant: o.variant || 'standard' }); },
+        export_txt: function(o){ o=o||{}; send('export_txt', { variant: o.variant || 'standard' }); },
+        open_preventivo: function(o){ o=o||{}; send('open_preventivo', { variant: o.variant || 'riv' }); }
+      };
+
+      window.addEventListener('DOMContentLoaded', function(){
+        var els = document.querySelectorAll('[data-zone]');
+        for (var i=0;i<els.length;i++){
+          var z = els[i].getAttribute('data-zone');
+          if (z) window.track.zone_view(z);
+        }
+      });
+    })();
+  </script>
+
+  <!-- App -->
+  <script src="app.js"></script>
+</body>
+</html>
