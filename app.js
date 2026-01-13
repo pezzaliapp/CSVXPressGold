@@ -467,7 +467,7 @@ function getMargineCli(){
 }
 
 // ===============================
-// Tabella articoli
+// Tabella articoli (SERVIZI VISIBILI E MODIFICABILI)
 // ===============================
 function tdInp(index, field, value, minVal){
   var v = (typeof value === "number") ? value : n(value);
@@ -488,7 +488,12 @@ function aggiornaTabellaArticoli() {
     var prezzoRiv = calcPrezzoConMargine(netto, mRiv);
 
     var q = clampMin(n(a.quantita), 1);
-    var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
+
+    // ✅ Servizi SEMPRE presenti in riga (visibili e modificabili)
+    var trp = n(a.costoTrasporto);
+    var inst = n(a.costoInstallazione);
+    var serv = trp + inst;
+
     var totRiv = roundTwo((prezzoRiv + serv) * q);
 
     var venduto = n(a.venduto);
@@ -503,8 +508,8 @@ function aggiornaTabellaArticoli() {
       tdInp(i,"sconto2", n(a.sconto2)) +
       tdInp(i,"margine", n(a.margine)) +
       "<td>" + netto.toFixed(2) + "€</td>" +
-      tdInp(i,"costoTrasporto", n(a.costoTrasporto)) +
-      tdInp(i,"costoInstallazione", n(a.costoInstallazione)) +
+      tdInp(i,"costoTrasporto", trp) +
+      tdInp(i,"costoInstallazione", inst) +
       tdInp(i,"quantita", q, 1) +
       "<td>" + totRiv.toFixed(2) + "€</td>" +
       tdInp(i,"venduto", venduto) +
@@ -513,9 +518,6 @@ function aggiornaTabellaArticoli() {
 
     tbody.appendChild(tr);
   }
-
-  // dopo rerender: nascondi colonne servizi
-  hideServiziUI();
 }
 
 function aggiornaCampo(event) {
@@ -582,7 +584,7 @@ function aggiornaTotaliGenerali() {
 }
 
 // ===============================
-// Aggiunta manuale
+// Aggiunta manuale (SERVIZI VISIBILI E MODIFICABILI)
 // ===============================
 function mostraFormArticoloManuale() {
   var tbody = document.querySelector("#articoli-table tbody");
@@ -599,7 +601,6 @@ function mostraFormArticoloManuale() {
     "<td><input type='number' id='manualSconto2' placeholder='%' value='0' step='0.01'></td>" +
     "<td><input type='number' id='manualMargine' placeholder='%' value='0' step='0.01'></td>" +
     "<td><span id='manualNetto'>—</span></td>" +
-    // Manteniamo i campi tecnici ma verranno nascosti da hideServiziUI()
     "<td><input type='number' id='manualTrasporto' placeholder='€' value='0' step='0.01'></td>" +
     "<td><input type='number' id='manualInstallazione' placeholder='€' value='0' step='0.01'></td>" +
     "<td><input type='number' id='manualQuantita' placeholder='1' value='1' min='1'></td>" +
@@ -614,9 +615,7 @@ function mostraFormArticoloManuale() {
   for (var i=0;i<ids.length;i++){
     byId(ids[i]).addEventListener("input", calcolaRigaManuale, false);
   }
-
   calcolaRigaManuale();
-  hideServiziUI();
 }
 
 function calcolaRigaManuale(){
@@ -656,27 +655,28 @@ function aggiungiArticoloManuale(){
     venduto: n(byId("manualVenduto").value)
   };
 
-  if (!autoPopolaCosti){
-    nuovo.costoTrasporto = 0;
-    nuovo.costoInstallazione = 0;
-  }
+  // ✅ NON azzeriamo i servizi: l'opzione "autoPopolaCosti" serve solo a popolare da CSV,
+  // non a togliere i campi o bloccarli.
+  // Se vuoi davvero azzerare manualmente, lo fai tu nei campi.
 
   articoliAggiunti.push(nuovo);
   annullaArticoloManuale();
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
   aggiornaBoxNoleggio();
-  hideServiziUI();
 }
 
 function annullaArticoloManuale(){
   var row = byId("manual-input-row");
   if (row && row.parentNode) row.parentNode.removeChild(row);
 }
+
 // ===============================
-// Report TXT / WhatsApp (SERVIZI NASCOSTI)
+// Report TXT / WhatsApp (SERVIZI opzionali nei report)
 // ===============================
 function generaReportTesto(includeMargine){
+  var showServ = byId("toggleMostraServizi") && byId("toggleMostraServizi").checked && autoPopolaCosti;
+
   var report = includeMargine
     ? "Report Articoli (Rivenditore - con Margine)\n\n"
     : "Report Articoli (Netto - senza Margine)\n\n";
@@ -692,7 +692,6 @@ function generaReportTesto(includeMargine){
     var s2 = n(a.sconto2);
     var netto = calcNetto(a);
 
-    // servizi calcolati ma NON stampati
     var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
 
     var linea = 0;
@@ -710,6 +709,9 @@ function generaReportTesto(includeMargine){
     report += "Lordo: " + lordo.toFixed(2) + "€ | S1: " + s1.toFixed(2) + "% | S2: " + s2.toFixed(2) + "%\n";
     report += "Netto: " + netto.toFixed(2) + "€ | Q.tà: " + q + "\n";
     if (includeMargine) report += "Margine%: " + getMargineRiv(a).toFixed(2) + "\n";
+    if (showServ){
+      report += "Trasporto: " + n(a.costoTrasporto).toFixed(2) + "€ | Installazione: " + n(a.costoInstallazione).toFixed(2) + "€\n";
+    }
     report += "Totale Riga: " + linea.toFixed(2) + "€\n\n";
   }
 
@@ -753,10 +755,9 @@ function generaTXTReportSenzaMargine(){
 }
 
 // ===============================
-// Preventivi stampabili (Riv / Cliente Finale) — SERVIZI INCLUSI MA NON VISIBILI
-// ===============================
-// ===============================
 // Preventivi stampabili (Riv / Cliente Finale) + Box Noleggio + Anagrafica
+// - Cliente finale: NON mostra servizi, NON mostra margine, ma li include nel "Netto cliente"
+// - Rivenditore: servizi opzionali (toggleMostraServizi) e margine visibile
 // ===============================
 function apriPreventivo(variant){
   if (window.track && window.track.open_preventivo) window.track.open_preventivo({ variant: variant });
@@ -769,10 +770,8 @@ function apriPreventivo(variant){
   var margineCli = getMargineCli();
   var ana = getAnagraficaForVariant(variant);
 
-  // 🔒 Servizi in stampa:
-  // - Cliente finale: NON mostrare mai i servizi
-  // - Rivenditore: opzionale via toggleMostraServizi (se presente) e solo se autoPopolaCosti attivo
-  var showServRiv = (byId("toggleMostraServizi") && byId("toggleMostraServizi").checked && autoPopolaCosti);
+  // Servizi visibili solo su preventivo riv (opzionale)
+  var showServRiv = (byId("toggleMostraServizi") && byId("toggleMostraServizi").checked);
   var mostraServiziInStampa = (variant === 'riv') ? showServRiv : false;
 
   var rowsHtml = "";
@@ -794,43 +793,37 @@ function apriPreventivo(variant){
     var installazione = n(a.costoInstallazione);
     var servUnit = trasporto + installazione;
 
-    // Prezzo unitario base (senza servizi)
+    // Prezzo unitario base (solo bene, senza servizi)
     var prezzoUnitBase = 0;
     if (variant === 'cli'){
-      // cliente finale: margine cliente sul netto bene
+      // cliente finale: applichi il margine al netto bene
       prezzoUnitBase = calcPrezzoConMargine(nettoBene, margineCli);
     } else {
-      // rivenditore: margine per riga / default
+      // rivenditore: margine per riga o default
       prezzoUnitBase = calcPrezzoConMargine(nettoBene, getMargineRiv(a));
     }
 
-    // ✅ Valore “netto” da mostrare in stampa:
-    // - cli: NETTO CLIENTE = (netto bene + margine) + servizi  (servizi nascosti)
-    // - riv: NETTO BENE (dopo sconti)
+    // "Netto" mostrato:
+    // - cli: netto cliente = (netto bene + margine) + servizi (servizi NON mostrati)
+    // - riv: netto bene (dopo sconti)
     var nettoMostratoUnit = (variant === 'cli')
       ? roundTwo(prezzoUnitBase + servUnit)
       : roundTwo(nettoBene);
 
-    // ✅ Sconto mostrato:
-    // - cli: inverso su LORDO BENE -> NETTO CLIENTE (finale unitario)
+    // Sconto mostrato:
+    // - cli: sconto inverso dal lordo bene al netto cliente (coerente con esempio)
     // - riv: S1 + S2
     var scontoTxt = "";
     if (variant === 'cli'){
-      var base = lordoBene;
-      var fin  = nettoMostratoUnit;
-      var sInv = 0;
-      if (base > 0){
-        sInv = (1 - (fin / base)) * 100;
-        if (sInv < 0) sInv = 0;
-        if (sInv > 99.99) sInv = 99.99;
-      }
-      scontoTxt = roundTwo(sInv).toFixed(2) + "%";
+      // usa la funzione già presente: include o meno i servizi in base alla modalità scelta
+      var sInv = calcScontoClientePerc(lordoBene, nettoMostratoUnit, servUnit);
+      scontoTxt = sInv.toFixed(2) + "%";
     } else {
       scontoTxt = s1.toFixed(2) + "% + " + s2.toFixed(2) + "%";
     }
 
-    // ✅ Totale riga:
-    // - cli: nettoMostratoUnit * q (include servizi, ma non li mostra)
+    // Totale riga:
+    // - cli: netto cliente * q (servizi inclusi ma non visibili)
     // - riv: (prezzoUnitBase + servizi) * q
     var totaleRiga = 0;
     if (variant === 'cli'){
@@ -848,14 +841,12 @@ function apriPreventivo(variant){
     rowsHtml += "<td>" + esc(scontoTxt) + "</td>";
     rowsHtml += "<td>" + nettoMostratoUnit.toFixed(2) + "€</td>";
 
-    // Prezzo unitario (opzionale):
-    // - cli: uguale al nettoMostratoUnit (così il cliente vede SOLO il prezzo finale unitario)
-    // - riv: prezzoUnitBase (senza servizi)
     if (mostraUnit){
+      // - cli: mostra SOLO il prezzo finale unitario (netto cliente)
+      // - riv: mostra prezzo unitario base (bene, senza servizi)
       rowsHtml += "<td>" + (variant === 'cli' ? nettoMostratoUnit.toFixed(2) : prezzoUnitBase.toFixed(2)) + "€</td>";
     }
 
-    // Servizi (solo riv, se richiesto)
     if (mostraServiziInStampa){
       rowsHtml += "<td>" + servUnit.toFixed(2) + "€</td>";
     }
@@ -904,7 +895,7 @@ function apriPreventivo(variant){
     html += "</div>";
   }
 
-  // ✅ IMPORTANTE: nel preventivo cliente NON mostrare margine/sconto-mode
+  // ✅ Nel preventivo cliente NON mostrare margine/sconto-mode
   if (variant === 'riv'){
     html += "<div class='sub'><b>Margine Rivenditore:</b> per riga (o default " + n(byId('margineRivDefault').value).toFixed(2) + "%) — <b>Sconto mostrato:</b> S1 + S2</div>";
   }
@@ -953,7 +944,7 @@ function apriPreventivo(variant){
 }
 
 // ===============================
-// NOLEGGIO (tabella coefficienti + spese)
+// NOLEGGIO (tabella coefficienti + spese) — invariato
 // ===============================
 function formatNumberIT(value) {
   value = (typeof value === "number") ? value : n(value);
