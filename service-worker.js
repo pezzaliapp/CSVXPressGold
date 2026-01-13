@@ -1,9 +1,13 @@
-// service-worker.js — CSVXpressGold
-// Cache-first per asset locali, network-first per CDN
-// Fix importante: per le navigation (index) ignora querystring (?v=...)
-// + caches.match con ignoreSearch per evitare duplicati in cache
+// service-worker.js — CSVXpressGold (v1.1.3)
+// Obiettivo: evitare JS "vecchio" che manipola il DOM.
+// Strategia:
+// - Navigations (index.html): NETWORK-FIRST (così la shell si aggiorna)
+// - app.js / style.css: STALE-WHILE-REVALIDATE (subito cached, ma si aggiorna in background)
+// - altri asset locali: CACHE-FIRST
+// - CDN: NETWORK-FIRST
 
-const CACHE_NAME = 'csvxpressgold-v1.1.2'; // 🔥 bump versione
+const CACHE_NAME = 'csvxpressgold-v1.1.3';
+
 const ASSETS = [
   './',
   './index.html',
@@ -21,22 +25,21 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting(); // forza install immediato
+  self.skipWaiting();
 });
 
 // ACTIVATE
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.map((k) => {
-          if (k !== CACHE_NAME) return caches.delete(k); // elimina vecchie cache
-          return null;
-        })
-      )
-    )
-  );
-  self.clients.claim(); // prende controllo subito
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null)));
+    await self.clients.claim();
+  })());
+});
+
+// opzionale: comando manuale per saltare waiting
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 // FETCH
@@ -48,24 +51,26 @@ self.addEventListener('fetch', (event) => {
   const isSameOrigin = url.origin === self.location.origin;
   const isCDN = url.hostname.includes('cdnjs.cloudflare.com');
 
-  // ✅ 1) Navigations (index.html) -> serve sempre la shell ignorando ?v=
+  // 1) Navigations -> NETWORK FIRST (fondamentale per aggiornare la shell)
   if (req.mode === 'navigate') {
-    event.respondWith(
-      caches.match('./index.html', { ignoreSearch: true })
-        .then((cached) => cached || fetch(req))
-        .catch(() => caches.match('./index.html', { ignoreSearch: true }))
-    );
+    event.respondWith(networkFirstWithCacheUpdate(new Request('./index.html', { cache: 'reload' })));
     return;
   }
 
-  // ✅ 2) CDN -> network first
+  // 2) CDN -> NETWORK FIRST
   if (isCDN) {
     event.respondWith(networkFirst(req));
     return;
   }
 
-  // ✅ 3) stessa origin -> cache first (ignorando querystring)
+  // 3) Locali: app.js e style.css -> Stale-While-Revalidate (anti “JS vecchio”)
   if (isSameOrigin) {
+    const path = url.pathname.replace(/\/+$/, '');
+    if (path.endsWith('/app.js') || path.endsWith('/style.css')) {
+      event.respondWith(staleWhileRevalidate(req));
+      return;
+    }
+    // 4) Altri asset locali -> CACHE FIRST (ignoreSearch per evitare duplicati ?v=)
     event.respondWith(cacheFirstIgnoreSearch(req));
     return;
   }
@@ -76,33 +81,61 @@ self.addEventListener('fetch', (event) => {
 
 // ---------- STRATEGIE ----------
 
-function cacheFirstIgnoreSearch(req) {
-  return caches.match(req, { ignoreSearch: true }).then((cached) => {
-    if (cached) return cached;
-
-    return fetch(req)
-      .then((res) => {
-        if (res && res.status === 200) {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
-        }
-        return res;
-      })
-      .catch(() => caches.match('./index.html', { ignoreSearch: true }));
-  });
+function normalizeKey(req) {
+  const u = new URL(req.url);
+  // normalizza la chiave togliendo querystring (evita duplicati in cache)
+  u.search = '';
+  return new Request(u.toString(), { method: 'GET' });
 }
 
-function networkFirst(req) {
-  return fetch(req)
+async function cacheFirstIgnoreSearch(req) {
+  const cache = await caches.open(CACHE_NAME);
+  const key = normalizeKey(req);
+
+  const cached = await cache.match(key);
+  if (cached) return cached;
+
+  try {
+    const res = await fetch(req);
+    if (res && res.status === 200) cache.put(key, res.clone());
+    return res;
+  } catch (e) {
+    // fallback: prova index
+    return (await cache.match(normalizeKey(new Request('./index.html')))) || Response.error();
+  }
+}
+
+async function staleWhileRevalidate(req) {
+  const cache = await caches.open(CACHE_NAME);
+  const key = normalizeKey(req);
+
+  const cached = await cache.match(key);
+  const fetchPromise = fetch(req)
     .then((res) => {
-      if (res && res.status === 200) {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
-      }
+      if (res && res.status === 200) cache.put(key, res.clone());
       return res;
     })
-    .catch(() =>
-      caches.match(req, { ignoreSearch: true })
-        .then((cached) => cached || caches.match('./index.html', { ignoreSearch: true }))
-    );
+    .catch(() => null);
+
+  // rispondi subito con cache se c'è, intanto aggiorna in background
+  return cached || (await fetchPromise) || Response.error();
+}
+
+async function networkFirst(req) {
+  const cache = await caches.open(CACHE_NAME);
+  const key = normalizeKey(req);
+
+  try {
+    const res = await fetch(req);
+    if (res && res.status === 200) cache.put(key, res.clone());
+    return res;
+  } catch (e) {
+    const cached = await cache.match(key);
+    return cached || Response.error();
+  }
+}
+
+async function networkFirstWithCacheUpdate(req) {
+  // usato per index.html: network-first, fallback cache
+  return networkFirst(req);
 }
