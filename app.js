@@ -1,6 +1,7 @@
 // ===============================
 // CSVXpressGold — app.js
 // Preventivi (Riv/Cliente) + Margine + Noleggio + TXT
+// + Sconto Cliente Finale (inverso) selezionabile
 // ===============================
 
 // Service Worker
@@ -73,10 +74,52 @@ document.addEventListener("DOMContentLoaded", function () {
   byId("margineCliDefault").addEventListener("input", function(){ aggiornaBoxNoleggio(); }, false);
   byId("margineRivDefault").addEventListener("input", function(){ aggiornaBoxNoleggio(); }, false);
 
+  // refresh noleggio quando cambia modalità sconto cliente
+  var radios = document.getElementsByName("scontoClienteMode");
+  for (var r=0;r<radios.length;r++){
+    radios[r].addEventListener("change", function(){ aggiornaBoxNoleggio(); }, false);
+  }
+
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
   aggiornaBoxNoleggio();
 });
+
+// ===============================
+// Modalità Sconto Cliente Finale
+// ===============================
+function getScontoClienteMode(){
+  var nodes = document.getElementsByName("scontoClienteMode");
+  for (var i=0;i<nodes.length;i++){
+    if (nodes[i].checked) return nodes[i].value;
+  }
+  return "bene";
+}
+
+// calcola sconto% inverso
+// mode 'bene': confronto su prezzoLordo vs prezzoClienteUnit
+// mode 'totale': confronto su (lordo+servizi) vs (clienteUnit+servizi)
+function calcScontoClientePerc(prezzoLordo, prezzoClienteUnit, serviziUnit){
+  var mode = getScontoClienteMode();
+  prezzoLordo = n(prezzoLordo);
+  prezzoClienteUnit = n(prezzoClienteUnit);
+  serviziUnit = n(serviziUnit);
+
+  var base = prezzoLordo;
+  var fin = prezzoClienteUnit;
+
+  if (mode === "totale"){
+    base = prezzoLordo + serviziUnit;
+    fin = prezzoClienteUnit + serviziUnit;
+  }
+
+  if (!base || base <= 0) return 0;
+
+  var s = (1 - (fin / base)) * 100;
+  if (s < 0) s = 0;
+  if (s > 99.99) s = 99.99;
+  return roundTwo(s);
+}
 
 // ===============================
 // CSV upload
@@ -413,7 +456,7 @@ function annullaArticoloManuale(){
 }
 
 // ===============================
-// Report TXT / WhatsApp
+// Report TXT / WhatsApp (aggiornato: include Lordo + sconti reali)
 // ===============================
 function generaReportTesto(includeMargine){
   var showServ = byId("toggleMostraServizi") && byId("toggleMostraServizi").checked && autoPopolaCosti;
@@ -423,7 +466,12 @@ function generaReportTesto(includeMargine){
   for (var i=0;i<articoliAggiunti.length;i++){
     var a = articoliAggiunti[i];
     var q = clampMin(n(a.quantita), 1);
+
+    var lordo = n(a.prezzoLordo);
+    var s1 = n(a.sconto);
+    var s2 = n(a.sconto2);
     var netto = calcNetto(a);
+
     var linea = 0;
 
     if (includeMargine){
@@ -437,6 +485,7 @@ function generaReportTesto(includeMargine){
     tot += linea;
 
     report += (i+1) + ". " + a.codice + " — " + a.descrizione + "\n";
+    report += "Lordo: " + lordo.toFixed(2) + "€ | S1: " + s1.toFixed(2) + "% | S2: " + s2.toFixed(2) + "%\n";
     report += "Netto: " + netto.toFixed(2) + "€ | Q.tà: " + q + "\n";
     if (includeMargine) report += "Margine%: " + getMargineRiv(a).toFixed(2) + "\n";
     if (showServ){
@@ -489,6 +538,7 @@ function generaTXTReportSenzaMargine(){
 
 // ===============================
 // Preventivi stampabili (Riv / Cliente Finale) + Box Noleggio
+// ✅ ora include Lordo + Sconto (reale o inverso)
 // ===============================
 function apriPreventivo(variant){
   if (window.track && window.track.open_preventivo) window.track.open_preventivo({ variant: variant });
@@ -507,8 +557,16 @@ function apriPreventivo(variant){
     var a = articoliAggiunti[i];
     var q = clampMin(n(a.quantita), 1);
 
+    var lordo = n(a.prezzoLordo);
+    var s1 = n(a.sconto);
+    var s2 = n(a.sconto2);
+
     var netto = calcNetto(a);
 
+    // servizi unitari
+    var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
+
+    // prezzo unitario finale
     var prezzoUnit = 0;
     if (variant === 'cli'){
       prezzoUnit = calcPrezzoConMargine(netto, margineCli);
@@ -516,7 +574,18 @@ function apriPreventivo(variant){
       prezzoUnit = calcPrezzoConMargine(netto, getMargineRiv(a));
     }
 
-    var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
+    // sconto da mostrare:
+    // - riv: mostra S1 + S2 reali
+    // - cli: sconto inverso calcolato da prezzoUnit vs lordo (bene o totale a seconda selezione)
+    var scontoTxt = "";
+    if (variant === 'cli'){
+      var sInv = calcScontoClientePerc(lordo, prezzoUnit, serv);
+      scontoTxt = sInv.toFixed(2) + "%";
+    } else {
+      scontoTxt = s1.toFixed(2) + "% + " + s2.toFixed(2) + "%";
+    }
+
+    // totale riga (prezzoUnit + servizi) * q
     var riga = roundTwo((prezzoUnit + serv) * q);
     tot += riga;
 
@@ -524,6 +593,8 @@ function apriPreventivo(variant){
     rowsHtml += "<td>" + esc(a.codice) + "</td>";
     rowsHtml += "<td style='text-align:left'>" + esc(a.descrizione) + "</td>";
     rowsHtml += "<td>" + q + "</td>";
+    rowsHtml += "<td>" + lordo.toFixed(2) + "€</td>";
+    rowsHtml += "<td>" + scontoTxt + "</td>";
     rowsHtml += "<td>" + netto.toFixed(2) + "€</td>";
     if (mostraUnit) rowsHtml += "<td>" + prezzoUnit.toFixed(2) + "€</td>";
     rowsHtml += "<td>" + serv.toFixed(2) + "€</td>";
@@ -555,13 +626,14 @@ function apriPreventivo(variant){
   html += "<div class='sub'>Generato da CSVXpressGold — " + new Date().toLocaleString() + "</div>";
 
   if (variant === 'cli'){
-    html += "<div class='sub'><b>Margine Cliente Finale:</b> " + margineCli.toFixed(2) + "%</div>";
+    html += "<div class='sub'><b>Margine Cliente Finale:</b> " + margineCli.toFixed(2) + "% — <b>Sconto mostrato:</b> inverso (" + esc(getScontoClienteMode()) + ")</div>";
   } else {
-    html += "<div class='sub'><b>Margine Rivenditore:</b> per riga (o default " + n(byId('margineRivDefault').value).toFixed(2) + "%)</div>";
+    html += "<div class='sub'><b>Margine Rivenditore:</b> per riga (o default " + n(byId('margineRivDefault').value).toFixed(2) + "%) — <b>Sconto mostrato:</b> S1 + S2</div>";
   }
 
   html += "<table><thead><tr>";
-  html += "<th>Codice</th><th style='text-align:left'>Descrizione</th><th>Q.tà</th><th>Netto</th>";
+  html += "<th>Codice</th><th style='text-align:left'>Descrizione</th><th>Q.tà</th>";
+  html += "<th>Lordo</th><th>Sconto</th><th>Netto</th>";
   if (mostraUnit) html += "<th>Prezzo Unit.</th>";
   html += "<th>Servizi</th><th>Totale Riga</th>";
   html += "</tr></thead><tbody>" + rowsHtml + "</tbody></table>";
