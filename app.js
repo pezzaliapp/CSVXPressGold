@@ -3,7 +3,7 @@
 // Preventivi (Riv/Cliente) + Margine + Noleggio + TXT
 // + Sconto Cliente Finale (inverso) selezionabile
 // + Anagrafica (opzionale) salvata in localStorage
-// Compatibile con index.html (anagraficaTipo/anagraficaAzienda/...)
+// + SERVIZI NASCOSTI OVUNQUE (trasporto/installazione non visibili)
 // ===============================
 
 // Service Worker
@@ -40,6 +40,60 @@ function debounce(fn, ms){
     var args = arguments;
     t=setTimeout(function(){ fn.apply(null,args); }, ms);
   };
+}
+
+// ===============================
+// SERVIZI: NASCONDILI IN UI (robusto: cerca header per testo)
+// ===============================
+function hideServiziUI(){
+  // Disattiva toggleMostraServizi se esiste
+  var tms = byId("toggleMostraServizi");
+  if (tms){
+    try { tms.checked = false; } catch(e){}
+    tms.disabled = true;
+    // se è dentro un contenitore, nascondilo
+    try { (tms.closest ? tms.closest("label") : null) && (tms.closest("label").style.display="none"); } catch(e){}
+  }
+
+  // Nascondi eventuali elementi dedicati ai servizi
+  var idsToHide = [
+    "toggleMostraServizi",
+    "serviziBox",
+    "serviziPanel",
+    "serviziRow"
+  ];
+  for (var i=0;i<idsToHide.length;i++){
+    var el = byId(idsToHide[i]);
+    if (el) el.style.display = "none";
+  }
+
+  // Nascondi colonne nella tabella articoli: Trasporto / Installazione / Servizi
+  var table = document.querySelector("#articoli-table");
+  if (!table) return;
+
+  var ths = table.querySelectorAll("thead th");
+  if (!ths || !ths.length) return;
+
+  var hideIdx = [];
+  for (var k=0;k<ths.length;k++){
+    var txt = (ths[k].textContent || "").toLowerCase();
+    if (txt.indexOf("trasporto")>-1 || txt.indexOf("install")>-1 || txt.indexOf("servizi")>-1){
+      hideIdx.push(k);
+      ths[k].style.display = "none";
+    }
+  }
+
+  if (!hideIdx.length) return;
+
+  // nascondi anche le celle di quelle colonne
+  var rows = table.querySelectorAll("tr");
+  for (var r=0;r<rows.length;r++){
+    var cells = rows[r].children;
+    for (var h=0;h<hideIdx.length;h++){
+      var idx = hideIdx[h];
+      if (cells && cells[idx]) cells[idx].style.display = "none";
+    }
+  }
 }
 
 // ===============================
@@ -143,7 +197,6 @@ function getAnagraficaForVariant(variant){
   a._variant = variant;
   return a;
 }
-
 // ===============================
 // Bootstrap
 // ===============================
@@ -155,6 +208,9 @@ document.addEventListener("DOMContentLoaded", function () {
     var badge = document.getElementById("verBadge");
     if (badge) badge.textContent = "ver " + VER;
   } catch(e) {}
+
+  // Nascondi servizi ovunque
+  hideServiziUI();
 
   // Anagrafica: bind (usa i campi presenti in index.html)
   bindAnagraficaAutosave();
@@ -177,9 +233,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   byId("toggleCosti").addEventListener("change", function(){
     autoPopolaCosti = byId("toggleCosti").checked;
-    var tms = byId("toggleMostraServizi");
-    if (tms) tms.disabled = !autoPopolaCosti;
 
+    // se disattivi autopolpa, azzera i costi (anche se nascosti)
     for (var i=0;i<articoliAggiunti.length;i++){
       var a = articoliAggiunti[i];
       if (!autoPopolaCosti){
@@ -197,6 +252,9 @@ document.addEventListener("DOMContentLoaded", function () {
     aggiornaTabellaArticoli();
     aggiornaTotaliGenerali();
     aggiornaBoxNoleggio();
+
+    // ri-applica hide colonne dopo rerender
+    hideServiziUI();
   }, false);
 
   byId("btnWA").addEventListener("click", inviaReportWhatsApp, false);
@@ -226,6 +284,9 @@ document.addEventListener("DOMContentLoaded", function () {
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
   aggiornaBoxNoleggio();
+
+  // ultima passata per nascondere colonne appena create
+  hideServiziUI();
 });
 
 // ===============================
@@ -261,7 +322,6 @@ function calcScontoClientePerc(prezzoLordo, prezzoClienteUnit, serviziUnit){
   if (s > 99.99) s = 99.99;
   return roundTwo(s);
 }
-
 // ===============================
 // CSV upload
 // ===============================
@@ -312,6 +372,7 @@ function handleCSVUpload(event) {
       if (errEl2) errEl2.style.display = "none";
 
       aggiornaListinoSelect();
+      hideServiziUI();
     },
     error: function(err) {
       var ms2 = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
@@ -375,6 +436,7 @@ function aggiungiArticoloDaListino() {
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
   aggiornaBoxNoleggio();
+  hideServiziUI();
 }
 
 // ===============================
@@ -451,6 +513,9 @@ function aggiornaTabellaArticoli() {
 
     tbody.appendChild(tr);
   }
+
+  // dopo rerender: nascondi colonne servizi
+  hideServiziUI();
 }
 
 function aggiornaCampo(event) {
@@ -534,6 +599,7 @@ function mostraFormArticoloManuale() {
     "<td><input type='number' id='manualSconto2' placeholder='%' value='0' step='0.01'></td>" +
     "<td><input type='number' id='manualMargine' placeholder='%' value='0' step='0.01'></td>" +
     "<td><span id='manualNetto'>—</span></td>" +
+    // Manteniamo i campi tecnici ma verranno nascosti da hideServiziUI()
     "<td><input type='number' id='manualTrasporto' placeholder='€' value='0' step='0.01'></td>" +
     "<td><input type='number' id='manualInstallazione' placeholder='€' value='0' step='0.01'></td>" +
     "<td><input type='number' id='manualQuantita' placeholder='1' value='1' min='1'></td>" +
@@ -548,7 +614,9 @@ function mostraFormArticoloManuale() {
   for (var i=0;i<ids.length;i++){
     byId(ids[i]).addEventListener("input", calcolaRigaManuale, false);
   }
+
   calcolaRigaManuale();
+  hideServiziUI();
 }
 
 function calcolaRigaManuale(){
@@ -588,24 +656,31 @@ function aggiungiArticoloManuale(){
     venduto: n(byId("manualVenduto").value)
   };
 
+  if (!autoPopolaCosti){
+    nuovo.costoTrasporto = 0;
+    nuovo.costoInstallazione = 0;
+  }
+
   articoliAggiunti.push(nuovo);
   annullaArticoloManuale();
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
   aggiornaBoxNoleggio();
+  hideServiziUI();
 }
 
 function annullaArticoloManuale(){
   var row = byId("manual-input-row");
   if (row && row.parentNode) row.parentNode.removeChild(row);
 }
-
 // ===============================
-// Report TXT / WhatsApp
+// Report TXT / WhatsApp (SERVIZI NASCOSTI)
 // ===============================
 function generaReportTesto(includeMargine){
-  var showServ = byId("toggleMostraServizi") && byId("toggleMostraServizi").checked && autoPopolaCosti;
-  var report = includeMargine ? "Report Articoli (Rivenditore - con Margine)\n\n" : "Report Articoli (Netto - senza Margine)\n\n";
+  var report = includeMargine
+    ? "Report Articoli (Rivenditore - con Margine)\n\n"
+    : "Report Articoli (Netto - senza Margine)\n\n";
+
   var tot = 0;
 
   for (var i=0;i<articoliAggiunti.length;i++){
@@ -617,13 +692,15 @@ function generaReportTesto(includeMargine){
     var s2 = n(a.sconto2);
     var netto = calcNetto(a);
 
-    var linea = 0;
+    // servizi calcolati ma NON stampati
+    var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
 
+    var linea = 0;
     if (includeMargine){
       var prezzoRiv = calcPrezzoConMargine(netto, getMargineRiv(a));
-      linea = (prezzoRiv + n(a.costoTrasporto) + n(a.costoInstallazione)) * q;
+      linea = (prezzoRiv + serv) * q;
     } else {
-      linea = (netto + n(a.costoTrasporto) + n(a.costoInstallazione)) * q;
+      linea = (netto + serv) * q;
     }
 
     linea = roundTwo(linea);
@@ -633,9 +710,6 @@ function generaReportTesto(includeMargine){
     report += "Lordo: " + lordo.toFixed(2) + "€ | S1: " + s1.toFixed(2) + "% | S2: " + s2.toFixed(2) + "%\n";
     report += "Netto: " + netto.toFixed(2) + "€ | Q.tà: " + q + "\n";
     if (includeMargine) report += "Margine%: " + getMargineRiv(a).toFixed(2) + "\n";
-    if (showServ){
-      report += "Trasporto: " + n(a.costoTrasporto).toFixed(2) + "€ | Installazione: " + n(a.costoInstallazione).toFixed(2) + "€\n";
-    }
     report += "Totale Riga: " + linea.toFixed(2) + "€\n\n";
   }
 
@@ -665,24 +739,21 @@ function inviaReportWhatsApp(){
   if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: 'standard' });
   shareWhatsApp(generaReportTesto(true));
 }
-
 function generaTXTReport(){
   if (window.track && window.track.export_txt) window.track.export_txt({ variant: 'standard' });
   openText(generaReportTesto(true));
 }
-
 function inviaReportWhatsAppSenzaMargine(){
   if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: 'no_margin' });
   shareWhatsApp(generaReportTesto(false));
 }
-
 function generaTXTReportSenzaMargine(){
   if (window.track && window.track.export_txt) window.track.export_txt({ variant: 'no_margin' });
   openText(generaReportTesto(false));
 }
 
 // ===============================
-// Preventivi stampabili (Riv / Cliente Finale) + Box Noleggio + Anagrafica
+// Preventivi stampabili (Riv / Cliente Finale) — SERVIZI INCLUSI MA NON VISIBILI
 // ===============================
 function apriPreventivo(variant){
   if (window.track && window.track.open_preventivo) window.track.open_preventivo({ variant: variant });
@@ -708,6 +779,7 @@ function apriPreventivo(variant){
 
     var netto = calcNetto(a);
 
+    // servizi inclusi nel totale riga ma non mostrati
     var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
 
     var prezzoUnit = 0;
@@ -736,7 +808,6 @@ function apriPreventivo(variant){
     rowsHtml += "<td>" + esc(scontoTxt) + "</td>";
     rowsHtml += "<td>" + netto.toFixed(2) + "€</td>";
     if (mostraUnit) rowsHtml += "<td>" + prezzoUnit.toFixed(2) + "€</td>";
-    rowsHtml += "<td>" + serv.toFixed(2) + "€</td>";
     rowsHtml += "<td><b>" + riga.toFixed(2) + "€</b></td>";
     rowsHtml += "</tr>";
   }
@@ -791,7 +862,7 @@ function apriPreventivo(variant){
   html += "<th>Codice</th><th style='text-align:left'>Descrizione</th><th>Q.tà</th>";
   html += "<th>Lordo</th><th>Sconto</th><th>Netto</th>";
   if (mostraUnit) html += "<th>Prezzo Unit.</th>";
-  html += "<th>Servizi</th><th>Totale Riga</th>";
+  html += "<th>Totale Riga</th>";
   html += "</tr></thead><tbody>" + rowsHtml + "</tbody></table>";
 
   html += "<div class='tot'>";
@@ -916,7 +987,7 @@ function aggiornaBoxNoleggio(){
   var dur = byId("noleggioDurata");
   if (!dur) return;
 
-  var imponibile = getTotaleImponibileDaArticoli('cli'); // live: cliente finale
+  var imponibile = getTotaleImponibileDaArticoli('cli');
   var out = calcolaNoleggio(imponibile, dur.value);
 
   var elR = byId("noleggioRata");
