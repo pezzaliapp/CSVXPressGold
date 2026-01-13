@@ -3,6 +3,7 @@
 // Preventivi (Riv/Cliente) + Margine + Noleggio + TXT
 // + Sconto Cliente Finale (inverso) selezionabile
 // + Anagrafica (opzionale) salvata in localStorage
+// Compatibile con index.html (anagraficaTipo/anagraficaAzienda/...)
 // ===============================
 
 // Service Worker
@@ -42,115 +43,105 @@ function debounce(fn, ms){
 }
 
 // ===============================
-// ANAGRAFICA (opzionale) — localStorage
+// ANAGRAFICA (opzionale) — usa i campi già presenti in index.html
 // ===============================
-var ANAG_KEY = "csvxpressgold_anagrafica_v1";
+var ANAG_KEY = "csvxpressgold_anagrafica_v2";
 
-function mountAnagraficaUI(){
-  var prevSec = byId("preventivi-section");
-  if (!prevSec) return;
-  if (byId("anagrafica-section")) return;
+function anagIds(){
+  return [
+    "anagraficaTipo",
+    "anagraficaAzienda",
+    "anagraficaReferente",
+    "anagraficaEmail",
+    "anagraficaCell",
+    "anagraficaIndirizzo",
+    "anagraficaPiva",
+    "anagraficaCf",
+    "anagraficaNote"
+  ];
+}
 
-  var sec = document.createElement("section");
-  sec.id = "anagrafica-section";
-  sec.setAttribute("data-zone","anagrafica");
-  sec.innerHTML =
-    "<h2>Anagrafica (opzionale)</h2>" +
-    "<p class='hint'>Puoi lasciare i campi vuoti e continuare. I dati si salvano sul dispositivo.</p>" +
-
-    "<div class='panel'>" +
-      "<h3>Rivenditore</h3>" +
-      "<div class='grid'>" +
-        "<div><label>Azienda</label><input id='riv_azienda' type='text' placeholder='Ragione sociale'></div>" +
-        "<div><label>Referente</label><input id='riv_ref' type='text' placeholder='Nome e cognome'></div>" +
-        "<div><label>Indirizzo</label><input id='riv_ind' type='text' placeholder='Via, CAP, Città, Prov.'></div>" +
-        "<div><label>Email</label><input id='riv_email' type='text' placeholder='email@azienda.it'></div>" +
-        "<div><label>Cellulare</label><input id='riv_cell' type='text' placeholder='+39 ...'></div>" +
-        "<div><label>P.IVA / C.F.</label><input id='riv_piva' type='text' placeholder='Partita IVA / Codice fiscale'></div>" +
-      "</div>" +
-    "</div>" +
-
-    "<div class='panel'>" +
-      "<h3>Cliente Finale</h3>" +
-      "<div class='grid'>" +
-        "<div><label>Azienda</label><input id='cli_azienda' type='text' placeholder='Ragione sociale'></div>" +
-        "<div><label>Referente</label><input id='cli_ref' type='text' placeholder='Nome e cognome'></div>" +
-        "<div><label>Indirizzo</label><input id='cli_ind' type='text' placeholder='Via, CAP, Città, Prov.'></div>" +
-        "<div><label>Email</label><input id='cli_email' type='text' placeholder='email@cliente.it'></div>" +
-        "<div><label>Cellulare</label><input id='cli_cell' type='text' placeholder='+39 ...'></div>" +
-        "<div><label>P.IVA / C.F.</label><input id='cli_piva' type='text' placeholder='Partita IVA / Codice fiscale'></div>" +
-      "</div>" +
-    "</div>" +
-
-    "<div class='row'>" +
-      "<button type='button' id='btnSaveAnag' class='secondary'>Salva Anagrafica</button>" +
-      "<button type='button' id='btnClearAnag'>Svuota</button>" +
-    "</div>";
-
-  prevSec.parentNode.insertBefore(sec, prevSec);
-
-  loadAnagrafica();
-
-  byId("btnSaveAnag").addEventListener("click", saveAnagrafica, false);
-  byId("btnClearAnag").addEventListener("click", function(){
-    try{ localStorage.removeItem(ANAG_KEY); }catch(e){}
-    loadAnagrafica(true);
-  }, false);
-
-  var ids = ["riv_azienda","riv_ref","riv_ind","riv_email","riv_cell","riv_piva","cli_azienda","cli_ref","cli_ind","cli_email","cli_cell","cli_piva"];
-  for (var i=0;i<ids.length;i++){
-    (function(id){
-      var el = byId(id);
-      if (!el) return;
-      el.addEventListener("input", debounce(saveAnagrafica, 350), false);
-    })(ids[i]);
-  }
+function hasAnagraficaUI(){
+  return !!byId("anagraficaAzienda");
 }
 
 function getAnagraficaFromUI(){
   function val(id){ var el=byId(id); return el ? (el.value||"").trim() : ""; }
   return {
-    riv: { azienda:val("riv_azienda"), referente:val("riv_ref"), indirizzo:val("riv_ind"), email:val("riv_email"), cell:val("riv_cell"), piva:val("riv_piva") },
-    cli: { azienda:val("cli_azienda"), referente:val("cli_ref"), indirizzo:val("cli_ind"), email:val("cli_email"), cell:val("cli_cell"), piva:val("cli_piva") }
+    tipo: val("anagraficaTipo") || "rivenditore",
+    azienda: val("anagraficaAzienda"),
+    referente: val("anagraficaReferente"),
+    email: val("anagraficaEmail"),
+    cell: val("anagraficaCell"),
+    indirizzo: val("anagraficaIndirizzo"),
+    piva: val("anagraficaPiva"),
+    cf: val("anagraficaCf"),
+    note: val("anagraficaNote")
   };
 }
 
 function setAnagraficaToUI(data, clear){
   data = data || {};
-  function set(id,v){ var el=byId(id); if(el) el.value = clear ? "" : (v||""); }
-  set("riv_azienda", data.riv && data.riv.azienda);
-  set("riv_ref", data.riv && data.riv.referente);
-  set("riv_ind", data.riv && data.riv.indirizzo);
-  set("riv_email", data.riv && data.riv.email);
-  set("riv_cell", data.riv && data.riv.cell);
-  set("riv_piva", data.riv && data.riv.piva);
-
-  set("cli_azienda", data.cli && data.cli.azienda);
-  set("cli_ref", data.cli && data.cli.referente);
-  set("cli_ind", data.cli && data.cli.indirizzo);
-  set("cli_email", data.cli && data.cli.email);
-  set("cli_cell", data.cli && data.cli.cell);
-  set("cli_piva", data.cli && data.cli.piva);
+  function set(id, v){
+    var el = byId(id);
+    if (!el) return;
+    el.value = clear ? "" : (v || "");
+  }
+  set("anagraficaTipo", data.tipo || "rivenditore");
+  set("anagraficaAzienda", data.azienda);
+  set("anagraficaReferente", data.referente);
+  set("anagraficaEmail", data.email);
+  set("anagraficaCell", data.cell);
+  set("anagraficaIndirizzo", data.indirizzo);
+  set("anagraficaPiva", data.piva);
+  set("anagraficaCf", data.cf);
+  set("anagraficaNote", data.note);
 }
 
 function saveAnagrafica(){
+  if (!hasAnagraficaUI()) return;
   try{
     localStorage.setItem(ANAG_KEY, JSON.stringify(getAnagraficaFromUI()));
   }catch(e){}
 }
 
 function loadAnagrafica(clear){
+  if (!hasAnagraficaUI()) return;
   try{
-    if(clear){ setAnagraficaToUI(null,true); return; }
+    if (clear){ setAnagraficaToUI(null, true); return; }
     var raw = localStorage.getItem(ANAG_KEY);
-    if(!raw) return;
+    if (!raw) return;
     setAnagraficaToUI(JSON.parse(raw), false);
   }catch(e){}
 }
 
+function bindAnagraficaAutosave(){
+  if (!hasAnagraficaUI()) return;
+
+  // carica all'avvio
+  loadAnagrafica(false);
+
+  // autosave
+  var ids = anagIds();
+  var saver = debounce(saveAnagrafica, 300);
+
+  for (var i=0;i<ids.length;i++){
+    (function(id){
+      var el = byId(id);
+      if (!el) return;
+      el.addEventListener("input", saver, false);
+      el.addEventListener("change", saver, false);
+    })(ids[i]);
+  }
+}
+
 function getAnagraficaForVariant(variant){
+  if (!hasAnagraficaUI()) return {};
   var a = getAnagraficaFromUI();
-  return (variant === "cli") ? a.cli : a.riv;
+  a._label = (a.tipo === "cliente") ? "Cliente finale" : "Rivenditore";
+  a._prefer = (a.tipo === "cliente") ? "cli" : "riv";
+  a._variant = variant;
+  return a;
 }
 
 // ===============================
@@ -165,8 +156,18 @@ document.addEventListener("DOMContentLoaded", function () {
     if (badge) badge.textContent = "ver " + VER;
   } catch(e) {}
 
-  // monta UI anagrafica (opzionale)
-  mountAnagraficaUI();
+  // Anagrafica: bind (usa i campi presenti in index.html)
+  bindAnagraficaAutosave();
+
+  // Pulsanti anagrafica (se presenti in index.html)
+  var btnSave = byId("btnSaveAnagrafica");
+  if (btnSave) btnSave.addEventListener("click", saveAnagrafica, false);
+
+  var btnClear = byId("btnClearAnagrafica");
+  if (btnClear) btnClear.addEventListener("click", function(){
+    try{ localStorage.removeItem(ANAG_KEY); }catch(e){}
+    loadAnagrafica(true);
+  }, false);
 
   byId("csvFileInput").addEventListener("change", handleCSVUpload, false);
   byId("searchListino").addEventListener("input", aggiornaListinoSelect, false);
@@ -765,16 +766,18 @@ function apriPreventivo(variant){
   html += "<div class='sub'>Generato da CSVXpressGold — " + new Date().toLocaleString() + "</div>";
 
   // Anagrafica (mostra solo se c'è qualcosa)
-  var hasAny = (ana.azienda||ana.referente||ana.indirizzo||ana.email||ana.cell||ana.piva);
+  var hasAny = (ana.azienda||ana.referente||ana.indirizzo||ana.email||ana.cell||ana.piva||ana.cf||ana.note);
   if (hasAny){
     html += "<div class='box'>";
-    html += "<div style='font-weight:700;margin-bottom:6px'>Anagrafica</div>";
+    html += "<div style='font-weight:700;margin-bottom:6px'>Anagrafica (" + esc(ana._label || "Dati") + ")</div>";
     if (ana.azienda)   html += "<div><b>Azienda:</b> " + esc(ana.azienda) + "</div>";
     if (ana.referente) html += "<div><b>Referente:</b> " + esc(ana.referente) + "</div>";
     if (ana.indirizzo) html += "<div><b>Indirizzo:</b> " + esc(ana.indirizzo) + "</div>";
     if (ana.email)     html += "<div><b>Email:</b> " + esc(ana.email) + "</div>";
     if (ana.cell)      html += "<div><b>Cellulare:</b> " + esc(ana.cell) + "</div>";
-    if (ana.piva)      html += "<div><b>P.IVA / C.F.:</b> " + esc(ana.piva) + "</div>";
+    if (ana.piva)      html += "<div><b>P.IVA:</b> " + esc(ana.piva) + "</div>";
+    if (ana.cf)        html += "<div><b>C.F.:</b> " + esc(ana.cf) + "</div>";
+    if (ana.note)      html += "<div><b>Note:</b> " + esc(ana.note) + "</div>";
     html += "</div>";
   }
 
