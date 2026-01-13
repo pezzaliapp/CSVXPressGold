@@ -202,21 +202,14 @@
       </div>
 
       <div class="panel">
-        <h3>Sconto Cliente Finale (calcolo inverso)</h3>
+        <h3>Sconto Cliente Finale</h3>
 
-        <label class="check" style="display:block;margin:6px 0;">
-          <input type="radio" name="scontoClienteMode" value="bene" checked>
-          Calcola sconto sul solo bene (Prezzo Lordo di listino)
-        </label>
-
-        <label class="check" style="display:block;margin:6px 0;">
-          <input type="radio" name="scontoClienteMode" value="totale">
-          Calcola sconto sul totale (bene + trasporto + installazione)
-        </label>
-
-        <div class="mini">Il preventivo Cliente Finale mostrerà: Prezzo Lordo → Sconto% → Prezzo Finale.</div>
-      </div>
-
+<div class="mini" style="margin-top:6px">
+  Il prezzo proposto è un <b>prezzo finale chiavi in mano</b>,
+  comprensivo di prodotto, trasporto e installazione.<br>
+  La percentuale di sconto mostrata rappresenta
+  <b>l’equivalente sul prezzo di listino del bene</b>.
+</div>
       <div class="row">
         <button id="btnPrevRiv" type="button">Apri Preventivo Rivenditore (Stampa)</button>
         <button id="btnPrevCli" type="button">Apri Preventivo Cliente Finale (Stampa)</button>
