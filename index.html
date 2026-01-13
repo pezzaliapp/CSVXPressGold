@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-app="CSVXpressGold" data-ver="1.0.0">
+<html lang="it" data-app="CSVXpressGold" data-ver="1.1.0">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -35,11 +35,10 @@
 <body>
   <header data-zone="header">
     <div class="logo-container">
-      <!-- aggiorna i file icona in /icon -->
       <img src="icon/CSVXpressGold-1024.png" alt="CSVXpressGold Logo" class="logo">
       <div class="head-txt">
         <h1>CSVXpressGold</h1>
-        <div class="sub">Preventivi Rivenditore & Cliente Finale — Margine</div>
+        <div class="sub">Preventivi Rivenditore & Cliente Finale — Margine + Noleggio</div>
       </div>
     </div>
   </header>
@@ -56,6 +55,7 @@
           <input type="checkbox" id="toggleCosti" checked>
           Popola automaticamente Trasporto e Installazione
         </label>
+
         <label class="check">
           <input type="checkbox" id="toggleMostraServizi" checked>
           Mostra Trasporto/Installazione nei report
@@ -84,7 +84,7 @@
           <div>
             <label>Margine Rivenditore % (default)</label>
             <input type="number" id="margineRivDefault" value="20" step="0.01" min="0">
-            <div class="mini">Usato se una riga ha Margine% vuoto/0.</div>
+            <div class="mini">Usato se la riga ha Margine% vuoto/0.</div>
           </div>
 
           <div>
@@ -145,21 +145,73 @@
         <button id="btnPrevRiv" type="button">Apri Preventivo Rivenditore (Stampa)</button>
         <button id="btnPrevCli" type="button">Apri Preventivo Cliente Finale (Stampa)</button>
       </div>
-      <p class="hint">
-        Consiglio: su iPhone/iPad usa “Condividi → Stampa → PDF” (è il modo più stabile).
-      </p>
+      <p class="hint">Su iPhone/iPad: Condividi → Stampa → Salva come PDF.</p>
+
+      <!-- NOLEGGIO -->
+      <div class="panel" id="noleggio-panel">
+        <h3>Noleggio Operativo (simulazione)</h3>
+
+        <div class="grid">
+          <div>
+            <label>Durata</label>
+            <select id="noleggioDurata">
+              <option value="12">12 mesi</option>
+              <option value="18">18 mesi</option>
+              <option value="24" selected>24 mesi</option>
+              <option value="36">36 mesi</option>
+              <option value="48">48 mesi</option>
+              <option value="60">60 mesi</option>
+            </select>
+            <div class="mini">Calcolo su imponibile (totale senza IVA) del preventivo Cliente Finale.</div>
+          </div>
+
+          <div class="checkline">
+            <label class="check">
+              <input type="checkbox" id="noleggioMostraNelPreventivo" checked>
+              Mostra box Noleggio nel preventivo stampabile
+            </label>
+            <label class="check">
+              <input type="checkbox" id="noleggioMostraDettagli" checked>
+              Mostra spese/€/giorno/€/ora
+            </label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1;min-width:260px">
+            <div class="mini">Rata mensile</div>
+            <div id="noleggioRata" style="font-size:20px;font-weight:700">—</div>
+          </div>
+
+          <div style="flex:1;min-width:260px">
+            <div class="mini">Spese contratto</div>
+            <div id="noleggioSpese" style="font-size:16px;font-weight:700">—</div>
+          </div>
+
+          <div style="flex:1;min-width:260px">
+            <div class="mini">Costo giorno / ora</div>
+            <div id="noleggioDayHour" style="font-size:14px;font-weight:700">—</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="btnNoleggioTXT" type="button" class="secondary">Scarica TXT Noleggio</button>
+        </div>
+
+        <p class="hint">Include: spese contratto + “Spese incasso RID: 4,00 € al mese” + testi benefici.</p>
+      </div>
     </section>
 
     <section id="report-section" data-zone="report_export">
       <h2>Report Articoli</h2>
       <div class="row">
         <button id="btnWA" type="button">Invia Report su WhatsApp</button>
-        <button id="btnTXT" type="button" class="secondary">Genera TXT Report</button>
+        <button id="btnTXT" type="button" class="secondary">Apri TXT Report</button>
       </div>
 
       <div class="row">
         <button id="btnWASenzaMargine" type="button">WhatsApp (senza Margine)</button>
-        <button id="btnTXTSenzaMargine" type="button" class="secondary">TXT (senza Margine)</button>
+        <button id="btnTXTSenzaMargine" type="button" class="secondary">Apri TXT (senza Margine)</button>
       </div>
     </section>
   </main>
@@ -218,7 +270,8 @@
 
         report_whatsapp: function(o){ o=o||{}; send('report_whatsapp', { variant: o.variant || 'standard' }); },
         export_txt: function(o){ o=o||{}; send('export_txt', { variant: o.variant || 'standard' }); },
-        open_preventivo: function(o){ o=o||{}; send('open_preventivo', { variant: o.variant || 'riv' }); }
+        open_preventivo: function(o){ o=o||{}; send('open_preventivo', { variant: o.variant || 'riv' }); },
+        noleggio_txt: function(){ send('noleggio_txt', {}); }
       };
 
       window.addEventListener('DOMContentLoaded', function(){
