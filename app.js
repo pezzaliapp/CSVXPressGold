@@ -1,4 +1,9 @@
-// Registra il Service Worker (PWA)
+// ===============================
+// CSVXpressGold — app.js
+// Preventivi (Riv/Cliente) + Margine + Noleggio + TXT
+// ===============================
+
+// Service Worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js')
     .then(function(reg){ console.log("Service Worker registrato", reg); })
@@ -14,6 +19,10 @@ function roundTwo(num) { return Math.round(num * 100) / 100; }
 function n(v){ v = parseFloat(String(v).replace(",", ".")); return isNaN(v) ? 0 : v; }
 function clampMin(v, min){ return v < min ? min : v; }
 
+// DOM helpers
+function byId(id){ return document.getElementById(id); }
+function createEl(tag){ return document.createElement(tag); }
+
 document.addEventListener("DOMContentLoaded", function () {
   byId("csvFileInput").addEventListener("change", handleCSVUpload, false);
   byId("searchListino").addEventListener("input", aggiornaListinoSelect, false);
@@ -25,7 +34,6 @@ document.addEventListener("DOMContentLoaded", function () {
     autoPopolaCosti = byId("toggleCosti").checked;
     byId("toggleMostraServizi").disabled = !autoPopolaCosti;
 
-    // risincronizza costi da listino se riattivo
     for (var i=0;i<articoliAggiunti.length;i++){
       var a = articoliAggiunti[i];
       if (!autoPopolaCosti){
@@ -39,8 +47,10 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
     }
+
     aggiornaTabellaArticoli();
     aggiornaTotaliGenerali();
+    aggiornaBoxNoleggio();
   }, false);
 
   byId("btnWA").addEventListener("click", inviaReportWhatsApp, false);
@@ -52,14 +62,25 @@ document.addEventListener("DOMContentLoaded", function () {
   byId("btnPrevRiv").addEventListener("click", function(){ apriPreventivo('riv'); }, false);
   byId("btnPrevCli").addEventListener("click", function(){ apriPreventivo('cli'); }, false);
 
+  // NOLEGGIO UI
+  var selDur = byId("noleggioDurata");
+  if (selDur) selDur.addEventListener("change", aggiornaBoxNoleggio, false);
+
+  var btnNT = byId("btnNoleggioTXT");
+  if (btnNT) btnNT.addEventListener("click", scaricaNoleggioTXT, false);
+
+  // refresh noleggio quando cambiano i margini
+  byId("margineCliDefault").addEventListener("input", function(){ aggiornaBoxNoleggio(); }, false);
+  byId("margineRivDefault").addEventListener("input", function(){ aggiornaBoxNoleggio(); }, false);
+
+  aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
+  aggiornaBoxNoleggio();
 });
 
-// --- DOM helpers ---
-function byId(id){ return document.getElementById(id); }
-function createEl(tag){ return document.createElement(tag); }
-
-// --- CSV upload ---
+// ===============================
+// CSV upload
+// ===============================
 function handleCSVUpload(event) {
   var file = event.target.files[0];
   if (!file) return;
@@ -114,7 +135,9 @@ function handleCSVUpload(event) {
   });
 }
 
-// --- Listino ---
+// ===============================
+// Listino UI
+// ===============================
 function aggiornaListinoSelect() {
   var select = byId("listinoSelect");
   var searchTerm = (byId("searchListino").value || "").toLowerCase();
@@ -128,7 +151,7 @@ function aggiornaListinoSelect() {
     if (hit){
       var option = createEl("option");
       option.value = item.codice;
-      option.textContent = item.codice + " - " + item.descrizione + " - €" + item.prezzoLordo;
+      option.textContent = item.codice + " - " + item.descrizione + " - €" + item.prezzoLordo.toFixed(2);
       select.appendChild(option);
     }
   }
@@ -150,7 +173,6 @@ function aggiungiArticoloDaListino() {
   var articolo = trovaInListino(select.value);
   if (!articolo) { alert("Errore: articolo non trovato nel listino."); return; }
 
-  // clone semplice ES5
   var nuovo = {};
   for (var k in articolo) if (articolo.hasOwnProperty(k)) nuovo[k] = articolo[k];
 
@@ -162,9 +184,12 @@ function aggiungiArticoloDaListino() {
   articoliAggiunti.push(nuovo);
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
+  aggiornaBoxNoleggio();
 }
 
-// --- Calcoli riga ---
+// ===============================
+// Calcoli (Margine)
+// ===============================
 function calcNetto(a){
   var s1 = n(a.sconto);
   var s2 = n(a.sconto2);
@@ -175,7 +200,7 @@ function calcNetto(a){
 function calcPrezzoConMargine(netto, marginePerc){
   marginePerc = n(marginePerc);
   if (marginePerc <= 0) return roundTwo(netto);
-  if (marginePerc >= 99.99) marginePerc = 99.99; // evita infinito
+  if (marginePerc >= 99.99) marginePerc = 99.99;
   return roundTwo(netto / (1 - marginePerc/100));
 }
 
@@ -189,7 +214,9 @@ function getMargineCli(){
   return n(byId("margineCliDefault").value);
 }
 
-// --- Tabella ---
+// ===============================
+// Tabella articoli
+// ===============================
 function aggiornaTabellaArticoli() {
   var tbody = document.querySelector("#articoli-table tbody");
   tbody.innerHTML = "";
@@ -213,16 +240,13 @@ function aggiornaTabellaArticoli() {
       "<td>" + esc(a.codice) + "</td>" +
       "<td>" + esc(a.descrizione) + "</td>" +
       "<td>" + n(a.prezzoLordo).toFixed(2) + "€</td>" +
-
       tdInp(i,"sconto", n(a.sconto)) +
       tdInp(i,"sconto2", n(a.sconto2)) +
       tdInp(i,"margine", n(a.margine)) +
-
       "<td>" + netto.toFixed(2) + "€</td>" +
       tdInp(i,"costoTrasporto", n(a.costoTrasporto)) +
       tdInp(i,"costoInstallazione", n(a.costoInstallazione)) +
       tdInp(i,"quantita", q, 1) +
-
       "<td>" + totRiv.toFixed(2) + "€</td>" +
       tdInp(i,"venduto", venduto) +
       "<td>" + diff.toFixed(2) + "€</td>" +
@@ -249,13 +273,15 @@ function aggiornaCampo(event) {
   var field = input.getAttribute("data-field");
 
   var val = n(input.value);
-
   if ((field==="sconto" || field==="sconto2" || field==="margine") && val < 0) val = 0;
   if (field==="quantita" && val < 1) val = 1;
 
   articoliAggiunti[index][field] = val;
-  aggiornaTabellaArticoli();     // semplice e robusto (evita mismatch celle)
+
+  // refresh robusto
+  aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
+  aggiornaBoxNoleggio();
 }
 
 function rimuoviArticolo(index) {
@@ -263,9 +289,12 @@ function rimuoviArticolo(index) {
   articoliAggiunti.splice(index, 1);
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
+  aggiornaBoxNoleggio();
 }
 
-// --- Totali (Rivenditore come riferimento operativo) ---
+// ===============================
+// Totali
+// ===============================
 function aggiornaTotaliGenerali() {
   var totNetto = 0;
   var totRiv = 0;
@@ -277,8 +306,7 @@ function aggiornaTotaliGenerali() {
     var q = clampMin(n(a.quantita), 1);
 
     var netto = calcNetto(a);
-    var mRiv = getMargineRiv(a);
-    var prezzoRiv = calcPrezzoConMargine(netto, mRiv);
+    var prezzoRiv = calcPrezzoConMargine(netto, getMargineRiv(a));
 
     var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
     var totRigaRiv = roundTwo((prezzoRiv + serv) * q);
@@ -295,13 +323,15 @@ function aggiornaTotaliGenerali() {
   var holder = byId("totaleGenerale");
   var html = "";
   html += "<strong>Totale Netto (dopo sconti):</strong> " + totNetto.toFixed(2) + "€<br>";
-  html += "<strong>Totale Preventivo Rivenditore (con margine + servizi):</strong> " + totRiv.toFixed(2) + "€<br>";
+  html += "<strong>Totale Preventivo Rivenditore (margine + servizi):</strong> " + totRiv.toFixed(2) + "€<br>";
   html += "<strong>Totale Venduto (se compilato):</strong> " + totVend.toFixed(2) + "€<br>";
   html += "<strong>Totale Differenza:</strong> " + totDiff.toFixed(2) + "€";
   holder.innerHTML = html;
 }
 
-// --- Manual row ---
+// ===============================
+// Aggiunta manuale
+// ===============================
 function mostraFormArticoloManuale() {
   var tbody = document.querySelector("#articoli-table tbody");
   if (byId("manual-input-row")) return;
@@ -374,6 +404,7 @@ function aggiungiArticoloManuale(){
   annullaArticoloManuale();
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
+  aggiornaBoxNoleggio();
 }
 
 function annullaArticoloManuale(){
@@ -381,17 +412,17 @@ function annullaArticoloManuale(){
   if (row && row.parentNode) row.parentNode.removeChild(row);
 }
 
-// --- Report TXT / WhatsApp ---
+// ===============================
+// Report TXT / WhatsApp
+// ===============================
 function generaReportTesto(includeMargine){
   var showServ = byId("toggleMostraServizi") && byId("toggleMostraServizi").checked && autoPopolaCosti;
-
   var report = includeMargine ? "Report Articoli (Rivenditore - con Margine)\n\n" : "Report Articoli (Netto - senza Margine)\n\n";
   var tot = 0;
 
   for (var i=0;i<articoliAggiunti.length;i++){
     var a = articoliAggiunti[i];
     var q = clampMin(n(a.quantita), 1);
-
     var netto = calcNetto(a);
     var linea = 0;
 
@@ -419,20 +450,18 @@ function generaReportTesto(includeMargine){
 }
 
 function shareWhatsApp(text){
-  // app scheme + fallback (più affidabile su iOS)
   var appUrl = "whatsapp://send?text=" + encodeURIComponent(text);
   var webUrl = "https://api.whatsapp.com/send?text=" + encodeURIComponent(text);
-
-  var t = setTimeout(function(){ window.open(webUrl, "_blank"); }, 800);
+  setTimeout(function(){ window.open(webUrl, "_blank"); }, 800);
   window.location = appUrl;
 }
 
 function openText(content){
-  // download non affidabile su iOS: apri una pagina con <pre> stampabile/copiatibile
   var w = window.open("", "_blank");
   if (!w) { alert("Popup bloccato: abilita l'apertura finestre o usa Safari."); return; }
   w.document.open();
-  w.document.write("<!doctype html><html><head><meta charset='utf-8'><title>Report</title></head><body style='font-family:monospace;white-space:pre-wrap;padding:12px;'>" +
+  w.document.write("<!doctype html><html><head><meta charset='utf-8'><title>TXT</title></head>" +
+                   "<body style='font-family:monospace;white-space:pre-wrap;padding:12px;'>" +
                    esc(content) +
                    "</body></html>");
   w.document.close();
@@ -442,20 +471,25 @@ function inviaReportWhatsApp(){
   if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: 'standard' });
   shareWhatsApp(generaReportTesto(true));
 }
+
 function generaTXTReport(){
   if (window.track && window.track.export_txt) window.track.export_txt({ variant: 'standard' });
   openText(generaReportTesto(true));
 }
+
 function inviaReportWhatsAppSenzaMargine(){
   if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: 'no_margin' });
   shareWhatsApp(generaReportTesto(false));
 }
+
 function generaTXTReportSenzaMargine(){
   if (window.track && window.track.export_txt) window.track.export_txt({ variant: 'no_margin' });
   openText(generaReportTesto(false));
 }
 
-// --- Preventivi stampabili (Riv / Cliente Finale) ---
+// ===============================
+// Preventivi stampabili (Riv / Cliente Finale) + Box Noleggio
+// ===============================
 function apriPreventivo(variant){
   if (window.track && window.track.open_preventivo) window.track.open_preventivo({ variant: variant });
 
@@ -538,6 +572,26 @@ function apriPreventivo(variant){
   html += "<div style='font-size:18px;margin-top:6px'><b>TOTALE:</b> " + totIva.toFixed(2) + "€</div>";
   html += "</div>";
 
+  // Box noleggio
+  var showNol = byId("noleggioMostraNelPreventivo") && byId("noleggioMostraNelPreventivo").checked;
+  if (showNol){
+    var durSel = byId("noleggioDurata") ? byId("noleggioDurata").value : 24;
+    var outN = calcolaNoleggio(imp, durSel);
+
+    var showDettN = byId("noleggioMostraDettagli") && byId("noleggioMostraDettagli").checked;
+
+    html += "<div style='margin-top:14px;border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#fafafa'>";
+    html += "<div style='font-weight:700;margin-bottom:6px'>Noleggio Operativo (simulazione)</div>";
+    html += "<div>Durata: <b>" + esc(String(durSel)) + " mesi</b></div>";
+    html += "<div>Rata mensile: <b>" + esc(formatNumberIT(outN.rata)) + " €</b></div>";
+    html += "<div>Spese contratto: <b>" + esc(formatNumberIT(outN.spese)) + " €</b></div>";
+    if (showDettN){
+      html += "<div>Costo giornaliero: <b>" + esc(formatNumberIT(outN.giorno)) + " €</b> — Costo orario: <b>" + esc(formatNumberIT(outN.ora)) + " €</b></div>";
+      html += "<div style='margin-top:6px;color:#444'>Spese incasso RID: 4,00 € al mese</div>";
+    }
+    html += "</div>";
+  }
+
   html += "<button class='btn' onclick='window.print()'>Stampa / Salva PDF</button>";
   html += "</body></html>";
 
@@ -546,4 +600,172 @@ function apriPreventivo(variant){
   w.document.open();
   w.document.write(html);
   w.document.close();
+}
+
+// ===============================
+// NOLEGGIO (integrato)
+// ===============================
+function formatNumberIT(value) {
+  value = (typeof value === "number") ? value : n(value);
+  try {
+    return value.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch(e) {
+    return value.toFixed(2).replace('.', ',');
+  }
+}
+
+function calcolaSpeseContratto(importo) {
+  if (importo < 5001) return 75;
+  if (importo < 10001) return 100;
+  if (importo < 25001) return 150;
+  if (importo < 50001) return 225;
+  return 300;
+}
+
+function calcolaCanoniPerDurate(importo) {
+  var coefficienti = {
+    5000:   { 12: 0.081123, 18: 0.058239, 24: 0.045554, 36: 0.032359, 48: 0.025445, 60: 0.021358 },
+    15000:  { 12: 0.081433, 18: 0.058341, 24: 0.045535, 36: 0.032207, 48: 0.025213, 60: 0.021074 },
+    25000:  { 12: 0.081280, 18: 0.058195, 24: 0.045392, 36: 0.032065, 48: 0.025068, 60: 0.020926 },
+    50000:  { 12: 0.080770, 18: 0.057710, 24: 0.044915, 36: 0.031592, 48: 0.024588, 60: 0.020437 },
+    100000: { 12: 0.080744, 18: 0.057686, 24: 0.044891, 36: 0.031568, 48: 0.024564, 60: 0.020413 }
+  };
+
+  var keys = [5000,15000,25000,50000,100000];
+  var fascia = 100000;
+  for (var i=0;i<keys.length;i++){
+    if (importo <= keys[i]) { fascia = keys[i]; break; }
+  }
+
+  var result = {};
+  var mesiList = [12,18,24,36,48,60];
+  for (var j=0;j<mesiList.length;j++){
+    var mesi = mesiList[j];
+    result[mesi] = importo * coefficienti[fascia][mesi];
+  }
+  return result;
+}
+
+function calcolaNoleggio(importoImponibile, durataMesi){
+  var importo = n(importoImponibile);
+  durataMesi = parseInt(durataMesi, 10) || 24;
+
+  if (!importo || importo <= 0) {
+    return { rata: 0, spese: 0, giorno: 0, ora: 0, canoni: null };
+  }
+
+  var canoni = calcolaCanoniPerDurate(importo);
+  var rata = canoni[durataMesi] || 0;
+  var spese = calcolaSpeseContratto(importo);
+
+  var giorno = rata / 22;
+  var ora = giorno / 8;
+
+  return { rata: rata, spese: spese, giorno: giorno, ora: ora, canoni: canoni };
+}
+
+function getTotaleImponibileDaArticoli(variant){
+  var tot = 0;
+  for (var i=0;i<articoliAggiunti.length;i++){
+    var a = articoliAggiunti[i];
+    var q = clampMin(n(a.quantita), 1);
+    var netto = calcNetto(a);
+
+    var prezzoUnit = 0;
+    if (variant === 'cli'){
+      prezzoUnit = calcPrezzoConMargine(netto, getMargineCli());
+    } else {
+      prezzoUnit = calcPrezzoConMargine(netto, getMargineRiv(a));
+    }
+
+    var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
+    var riga = roundTwo((prezzoUnit + serv) * q);
+    tot += riga;
+  }
+  return roundTwo(tot);
+}
+
+function aggiornaBoxNoleggio(){
+  var dur = byId("noleggioDurata");
+  if (!dur) return;
+
+  var imponibile = getTotaleImponibileDaArticoli('cli'); // live: cliente finale
+  var out = calcolaNoleggio(imponibile, dur.value);
+
+  var elR = byId("noleggioRata");
+  var elS = byId("noleggioSpese");
+  var elDH = byId("noleggioDayHour");
+
+  if (!imponibile || imponibile <= 0){
+    if (elR) elR.textContent = "—";
+    if (elS) elS.textContent = "—";
+    if (elDH) elDH.textContent = "—";
+    return;
+  }
+
+  if (elR) elR.textContent = formatNumberIT(out.rata) + " € / mese";
+  if (elS) elS.textContent = formatNumberIT(out.spese) + " €";
+
+  var showDett = byId("noleggioMostraDettagli") && byId("noleggioMostraDettagli").checked;
+  if (elDH){
+    if (showDett){
+      elDH.textContent = formatNumberIT(out.giorno) + " €/giorno — " + formatNumberIT(out.ora) + " €/ora";
+    } else {
+      elDH.textContent = "—";
+    }
+  }
+}
+
+function scaricaNoleggioTXT(){
+  if (window.track && window.track.noleggio_txt) window.track.noleggio_txt();
+
+  var imponibile = getTotaleImponibileDaArticoli('cli');
+  if (!imponibile || imponibile <= 0){
+    alert("Aggiungi almeno un articolo prima di generare il TXT noleggio.");
+    return;
+  }
+
+  var canoni = calcolaCanoniPerDurate(imponibile);
+  var speseContratto = calcolaSpeseContratto(imponibile);
+
+  var testo = "";
+  testo += "PREVENTIVO DI NOLEGGIO OPERATIVO BCC\n";
+  testo += "--------------------------------------\n\n";
+  testo += "Importo (imponibile): " + formatNumberIT(imponibile) + " €\n\n";
+
+  testo += "CANONI MENSILI DISPONIBILI:\n";
+  testo += "12 mesi: " + formatNumberIT(canoni[12]) + " €\n";
+  testo += "18 mesi: " + formatNumberIT(canoni[18]) + " €\n";
+  testo += "24 mesi: " + formatNumberIT(canoni[24]) + " €\n";
+  testo += "36 mesi: " + formatNumberIT(canoni[36]) + " €\n";
+  testo += "48 mesi: " + formatNumberIT(canoni[48]) + " €\n";
+  testo += "60 mesi: " + formatNumberIT(canoni[60]) + " €\n";
+
+  testo += "\n\nDETTAGLI CONTRATTUALI:\n";
+  testo += "Spese di contratto: " + formatNumberIT(speseContratto) + " €\n";
+  testo += "Spese incasso RID: 4,00 € al mese\n\n";
+
+  testo += "BENEFICI FISCALI:\n";
+  testo += "- Canone interamente deducibile.\n";
+  testo += "- Il bene non entra nei cespiti.\n";
+  testo += "- Nessuna incidenza su IRAP.\n\n";
+
+  testo += "BENEFICI FINANZIARI:\n";
+  testo += "- Non è un finanziamento.\n";
+  testo += "- Non impegna le linee di credito.\n";
+  testo += "- Non è un bene da ammortizzare.\n\n";
+
+  try {
+    var blob = new Blob([testo], { type: "text/plain" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "preventivo_noleggio_" + Math.round(imponibile) + ".txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    openText(testo);
+  }
 }
