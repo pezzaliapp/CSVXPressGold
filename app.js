@@ -431,23 +431,31 @@ function aggiornaTabellaArticoli() {
 
     var tr = createEl("tr");
     tr.innerHTML =
-      // ordine IDENTICO al THEAD in index.html
-      "<td>" + esc(a.codice) + "</td>" +
-      "<td>" + esc(a.descrizione) + "</td>" +
-      "<td>" + n(a.prezzoLordo).toFixed(2) + "€</td>" +
-      tdInp(i,"sconto", n(a.sconto), { min: 0, step: 0.01 }) +
-      tdInp(i,"sconto2", n(a.sconto2), { min: 0, step: 0.01 }) +
-      tdInp(i,"margine", n(a.margine), { min: 0, step: 0.01 }) +
-      "<td>" + netto.toFixed(2) + "€</td>" +
-      tdInp(i,"costoTrasporto", trp, { min: 0, step: 0.01 }) +
-      tdInp(i,"costoInstallazione", inst, { min: 0, step: 0.01 }) +
-      tdInp(i,"quantita", q, { min: 1, step: 1 }) +
-      "<td>" + totRiv.toFixed(2) + "€</td>" +
-      tdInp(i,"venduto", venduto, { min: 0, step: 0.01 }) +
-      "<td>" + diff.toFixed(2) + "€</td>" +
-      "<td><button type='button' onclick='rimuoviArticolo(" + i + ")'>Rimuovi</button></td>";
+    // ordine IDENTICO al THEAD in index.html
+tr.innerHTML =
+  "<td>" + esc(a.codice) + "</td>" +
+  "<td>" + esc(a.descrizione) + "</td>" +
+  "<td>" + n(a.prezzoLordo).toFixed(2) + "€</td>" +
+  tdInp(i,"sconto", n(a.sconto), { min: 0, step: 0.01 }) +
+  tdInp(i,"sconto2", n(a.sconto2), { min: 0, step: 0.01 }) +
 
-    tbody.appendChild(tr);
+  // ✅ Margine: se la riga è 0, mostra il default (cliente finale) per coerenza UI
+  (function(){
+    var mVal = n(a.margine);
+    if (mVal === 0) mVal = n(byId("margineCliDefault").value);
+    return tdInp(i,"margine", mVal, { min: 0, step: 0.01 });
+  })() +
+
+  "<td>" + netto.toFixed(2) + "€</td>" +
+  tdInp(i,"costoTrasporto", trp, { min: 0, step: 0.01 }) +
+  tdInp(i,"costoInstallazione", inst, { min: 0, step: 0.01 }) +
+  tdInp(i,"quantita", q, { min: 1, step: 1 }) +
+  "<td>" + totRiv.toFixed(2) + "€</td>" +
+  tdInp(i,"venduto", venduto, { min: 0, step: 0.01 }) +
+  "<td>" + diff.toFixed(2) + "€</td>" +
+  "<td><button type='button' onclick='rimuoviArticolo(" + i + ")'>Rimuovi</button></td>";
+
+tbody.appendChild(tr);
   }
 }
 
