@@ -1,0 +1,12 @@
+{
+  "name": "CSVXpressGold",
+  "short_name": "CSVXpressGold",
+  "icons": [
+    { "src": "icon/CSVXpressGold-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon/CSVXpressGold-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220"
+}
