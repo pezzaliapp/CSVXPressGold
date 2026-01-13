@@ -1,7 +1,8 @@
 // ===============================
-// CSVXpressGold — app.js
+// CSVXpressGold — app.js (FULL)
 // Preventivi (Riv/Cliente) + Margine + Noleggio + TXT
 // + Sconto Cliente Finale (inverso) selezionabile
+// + Anagrafica (opzionale) salvata in localStorage
 // ===============================
 
 // Service Worker
@@ -16,15 +17,157 @@ var listino = [];
 var articoliAggiunti = [];
 var autoPopolaCosti = true;
 
+// Utils
 function roundTwo(num) { return Math.round(num * 100) / 100; }
-function n(v){ v = parseFloat(String(v).replace(",", ".")); return isNaN(v) ? 0 : v; }
+function n(v){
+  v = parseFloat(String(v == null ? "" : v).replace(",", "."));
+  return isNaN(v) ? 0 : v;
+}
 function clampMin(v, min){ return v < min ? min : v; }
 
 // DOM helpers
 function byId(id){ return document.getElementById(id); }
 function createEl(tag){ return document.createElement(tag); }
+function esc(s){
+  s = (s == null) ? "" : String(s);
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function debounce(fn, ms){
+  var t=null;
+  return function(){
+    clearTimeout(t);
+    var args = arguments;
+    t=setTimeout(function(){ fn.apply(null,args); }, ms);
+  };
+}
 
+// ===============================
+// ANAGRAFICA (opzionale) — localStorage
+// ===============================
+var ANAG_KEY = "csvxpressgold_anagrafica_v1";
+
+function mountAnagraficaUI(){
+  var prevSec = byId("preventivi-section");
+  if (!prevSec) return;
+  if (byId("anagrafica-section")) return;
+
+  var sec = document.createElement("section");
+  sec.id = "anagrafica-section";
+  sec.setAttribute("data-zone","anagrafica");
+  sec.innerHTML =
+    "<h2>Anagrafica (opzionale)</h2>" +
+    "<p class='hint'>Puoi lasciare i campi vuoti e continuare. I dati si salvano sul dispositivo.</p>" +
+
+    "<div class='panel'>" +
+      "<h3>Rivenditore</h3>" +
+      "<div class='grid'>" +
+        "<div><label>Azienda</label><input id='riv_azienda' type='text' placeholder='Ragione sociale'></div>" +
+        "<div><label>Referente</label><input id='riv_ref' type='text' placeholder='Nome e cognome'></div>" +
+        "<div><label>Indirizzo</label><input id='riv_ind' type='text' placeholder='Via, CAP, Città, Prov.'></div>" +
+        "<div><label>Email</label><input id='riv_email' type='text' placeholder='email@azienda.it'></div>" +
+        "<div><label>Cellulare</label><input id='riv_cell' type='text' placeholder='+39 ...'></div>" +
+        "<div><label>P.IVA / C.F.</label><input id='riv_piva' type='text' placeholder='Partita IVA / Codice fiscale'></div>" +
+      "</div>" +
+    "</div>" +
+
+    "<div class='panel'>" +
+      "<h3>Cliente Finale</h3>" +
+      "<div class='grid'>" +
+        "<div><label>Azienda</label><input id='cli_azienda' type='text' placeholder='Ragione sociale'></div>" +
+        "<div><label>Referente</label><input id='cli_ref' type='text' placeholder='Nome e cognome'></div>" +
+        "<div><label>Indirizzo</label><input id='cli_ind' type='text' placeholder='Via, CAP, Città, Prov.'></div>" +
+        "<div><label>Email</label><input id='cli_email' type='text' placeholder='email@cliente.it'></div>" +
+        "<div><label>Cellulare</label><input id='cli_cell' type='text' placeholder='+39 ...'></div>" +
+        "<div><label>P.IVA / C.F.</label><input id='cli_piva' type='text' placeholder='Partita IVA / Codice fiscale'></div>" +
+      "</div>" +
+    "</div>" +
+
+    "<div class='row'>" +
+      "<button type='button' id='btnSaveAnag' class='secondary'>Salva Anagrafica</button>" +
+      "<button type='button' id='btnClearAnag'>Svuota</button>" +
+    "</div>";
+
+  prevSec.parentNode.insertBefore(sec, prevSec);
+
+  loadAnagrafica();
+
+  byId("btnSaveAnag").addEventListener("click", saveAnagrafica, false);
+  byId("btnClearAnag").addEventListener("click", function(){
+    try{ localStorage.removeItem(ANAG_KEY); }catch(e){}
+    loadAnagrafica(true);
+  }, false);
+
+  var ids = ["riv_azienda","riv_ref","riv_ind","riv_email","riv_cell","riv_piva","cli_azienda","cli_ref","cli_ind","cli_email","cli_cell","cli_piva"];
+  for (var i=0;i<ids.length;i++){
+    (function(id){
+      var el = byId(id);
+      if (!el) return;
+      el.addEventListener("input", debounce(saveAnagrafica, 350), false);
+    })(ids[i]);
+  }
+}
+
+function getAnagraficaFromUI(){
+  function val(id){ var el=byId(id); return el ? (el.value||"").trim() : ""; }
+  return {
+    riv: { azienda:val("riv_azienda"), referente:val("riv_ref"), indirizzo:val("riv_ind"), email:val("riv_email"), cell:val("riv_cell"), piva:val("riv_piva") },
+    cli: { azienda:val("cli_azienda"), referente:val("cli_ref"), indirizzo:val("cli_ind"), email:val("cli_email"), cell:val("cli_cell"), piva:val("cli_piva") }
+  };
+}
+
+function setAnagraficaToUI(data, clear){
+  data = data || {};
+  function set(id,v){ var el=byId(id); if(el) el.value = clear ? "" : (v||""); }
+  set("riv_azienda", data.riv && data.riv.azienda);
+  set("riv_ref", data.riv && data.riv.referente);
+  set("riv_ind", data.riv && data.riv.indirizzo);
+  set("riv_email", data.riv && data.riv.email);
+  set("riv_cell", data.riv && data.riv.cell);
+  set("riv_piva", data.riv && data.riv.piva);
+
+  set("cli_azienda", data.cli && data.cli.azienda);
+  set("cli_ref", data.cli && data.cli.referente);
+  set("cli_ind", data.cli && data.cli.indirizzo);
+  set("cli_email", data.cli && data.cli.email);
+  set("cli_cell", data.cli && data.cli.cell);
+  set("cli_piva", data.cli && data.cli.piva);
+}
+
+function saveAnagrafica(){
+  try{
+    localStorage.setItem(ANAG_KEY, JSON.stringify(getAnagraficaFromUI()));
+  }catch(e){}
+}
+
+function loadAnagrafica(clear){
+  try{
+    if(clear){ setAnagraficaToUI(null,true); return; }
+    var raw = localStorage.getItem(ANAG_KEY);
+    if(!raw) return;
+    setAnagraficaToUI(JSON.parse(raw), false);
+  }catch(e){}
+}
+
+function getAnagraficaForVariant(variant){
+  var a = getAnagraficaFromUI();
+  return (variant === "cli") ? a.cli : a.riv;
+}
+
+// ===============================
+// Bootstrap
+// ===============================
 document.addEventListener("DOMContentLoaded", function () {
+
+  // badge versione (se presente)
+  try {
+    var VER = document.documentElement.getAttribute('data-ver') || 'dev';
+    var badge = document.getElementById("verBadge");
+    if (badge) badge.textContent = "ver " + VER;
+  } catch(e) {}
+
+  // monta UI anagrafica (opzionale)
+  mountAnagraficaUI();
+
   byId("csvFileInput").addEventListener("change", handleCSVUpload, false);
   byId("searchListino").addEventListener("input", aggiornaListinoSelect, false);
 
@@ -33,7 +176,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   byId("toggleCosti").addEventListener("change", function(){
     autoPopolaCosti = byId("toggleCosti").checked;
-    byId("toggleMostraServizi").disabled = !autoPopolaCosti;
+    var tms = byId("toggleMostraServizi");
+    if (tms) tms.disabled = !autoPopolaCosti;
 
     for (var i=0;i<articoliAggiunti.length;i++){
       var a = articoliAggiunti[i];
@@ -70,11 +214,9 @@ document.addEventListener("DOMContentLoaded", function () {
   var btnNT = byId("btnNoleggioTXT");
   if (btnNT) btnNT.addEventListener("click", scaricaNoleggioTXT, false);
 
-  // refresh noleggio quando cambiano i margini
   byId("margineCliDefault").addEventListener("input", function(){ aggiornaBoxNoleggio(); }, false);
   byId("margineRivDefault").addEventListener("input", function(){ aggiornaBoxNoleggio(); }, false);
 
-  // refresh noleggio quando cambia modalità sconto cliente
   var radios = document.getElementsByName("scontoClienteMode");
   for (var r=0;r<radios.length;r++){
     radios[r].addEventListener("change", function(){ aggiornaBoxNoleggio(); }, false);
@@ -97,8 +239,6 @@ function getScontoClienteMode(){
 }
 
 // calcola sconto% inverso
-// mode 'bene': confronto su prezzoLordo vs prezzoClienteUnit
-// mode 'totale': confronto su (lordo+servizi) vs (clienteUnit+servizi)
 function calcScontoClientePerc(prezzoLordo, prezzoClienteUnit, serviziUnit){
   var mode = getScontoClienteMode();
   prezzoLordo = n(prezzoLordo);
@@ -140,7 +280,8 @@ function handleCSVUpload(event) {
       var ms = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
 
       if (!results.data || !results.data.length) {
-        byId("csvError").style.display = "block";
+        var errEl = byId("csvError");
+        if (errEl) errEl.style.display = "block";
         if (window.track && window.track.csv_parse_error) window.track.csv_parse_error({ code: 'empty_or_no_rows', ms: ms });
         return;
       }
@@ -166,13 +307,16 @@ function handleCSVUpload(event) {
       var cols = (results.meta && results.meta.fields && results.meta.fields.length) ? results.meta.fields.length : undefined;
       if (window.track && window.track.csv_parse_ok) window.track.csv_parse_ok({ rows: rows, cols: cols, ms: ms });
 
-      byId("csvError").style.display = "none";
+      var errEl2 = byId("csvError");
+      if (errEl2) errEl2.style.display = "none";
+
       aggiornaListinoSelect();
     },
     error: function(err) {
       var ms2 = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
       console.error("Errore CSV:", err);
-      byId("csvError").style.display = "block";
+      var errEl3 = byId("csvError");
+      if (errEl3) errEl3.style.display = "block";
       if (window.track && window.track.csv_parse_error) window.track.csv_parse_error({ code: 'papaparse_error', ms: ms2 });
     }
   });
@@ -183,13 +327,15 @@ function handleCSVUpload(event) {
 // ===============================
 function aggiornaListinoSelect() {
   var select = byId("listinoSelect");
+  if (!select) return;
   var searchTerm = (byId("searchListino").value || "").toLowerCase();
   select.innerHTML = "";
 
   for (var i=0;i<listino.length;i++){
     var item = listino[i];
-    var hit = (item.codice || "").toLowerCase().indexOf(searchTerm) > -1 ||
-              (item.descrizione || "").toLowerCase().indexOf(searchTerm) > -1;
+    var hit =
+      (item.codice || "").toLowerCase().indexOf(searchTerm) > -1 ||
+      (item.descrizione || "").toLowerCase().indexOf(searchTerm) > -1;
 
     if (hit){
       var option = createEl("option");
@@ -211,7 +357,7 @@ function aggiungiArticoloDaListino() {
   if (window.track && window.track.add_item_listino) window.track.add_item_listino();
 
   var select = byId("listinoSelect");
-  if (!select.value) return;
+  if (!select || !select.value) return;
 
   var articolo = trovaInListino(select.value);
   if (!articolo) { alert("Errore: articolo non trovato nel listino."); return; }
@@ -260,8 +406,15 @@ function getMargineCli(){
 // ===============================
 // Tabella articoli
 // ===============================
+function tdInp(index, field, value, minVal){
+  var v = (typeof value === "number") ? value : n(value);
+  var minAttr = (minVal != null) ? (" min='" + String(minVal) + "'") : "";
+  return "<td><input type='number' value='" + v + "' data-index='" + index + "' data-field='" + field + "'" + minAttr + " oninput='aggiornaCampo(event)'></td>";
+}
+
 function aggiornaTabellaArticoli() {
   var tbody = document.querySelector("#articoli-table tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
 
   for (var i=0;i<articoliAggiunti.length;i++){
@@ -299,17 +452,6 @@ function aggiornaTabellaArticoli() {
   }
 }
 
-function tdInp(index, field, value, minVal){
-  var v = (typeof value === "number") ? value : n(value);
-  var minAttr = (minVal != null) ? (" min='" + String(minVal) + "'") : "";
-  return "<td><input type='number' value='" + v + "' data-index='" + index + "' data-field='" + field + "'" + minAttr + " oninput='aggiornaCampo(event)'></td>";
-}
-
-function esc(s){
-  s = (s == null) ? "" : String(s);
-  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
-
 function aggiornaCampo(event) {
   var input = event.target;
   var index = parseInt(input.getAttribute("data-index"),10);
@@ -321,7 +463,6 @@ function aggiornaCampo(event) {
 
   articoliAggiunti[index][field] = val;
 
-  // refresh robusto
   aggiornaTabellaArticoli();
   aggiornaTotaliGenerali();
   aggiornaBoxNoleggio();
@@ -364,6 +505,8 @@ function aggiornaTotaliGenerali() {
   }
 
   var holder = byId("totaleGenerale");
+  if (!holder) return;
+
   var html = "";
   html += "<strong>Totale Netto (dopo sconti):</strong> " + totNetto.toFixed(2) + "€<br>";
   html += "<strong>Totale Preventivo Rivenditore (margine + servizi):</strong> " + totRiv.toFixed(2) + "€<br>";
@@ -377,6 +520,7 @@ function aggiornaTotaliGenerali() {
 // ===============================
 function mostraFormArticoloManuale() {
   var tbody = document.querySelector("#articoli-table tbody");
+  if (!tbody) return;
   if (byId("manual-input-row")) return;
 
   var tr = createEl("tr");
@@ -456,7 +600,7 @@ function annullaArticoloManuale(){
 }
 
 // ===============================
-// Report TXT / WhatsApp (aggiornato: include Lordo + sconti reali)
+// Report TXT / WhatsApp
 // ===============================
 function generaReportTesto(includeMargine){
   var showServ = byId("toggleMostraServizi") && byId("toggleMostraServizi").checked && autoPopolaCosti;
@@ -484,7 +628,7 @@ function generaReportTesto(includeMargine){
     linea = roundTwo(linea);
     tot += linea;
 
-    report += (i+1) + ". " + a.codice + " — " + a.descrizione + "\n";
+    report += (i+1) + ". " + (a.codice || "") + " — " + (a.descrizione || "") + "\n";
     report += "Lordo: " + lordo.toFixed(2) + "€ | S1: " + s1.toFixed(2) + "% | S2: " + s2.toFixed(2) + "%\n";
     report += "Netto: " + netto.toFixed(2) + "€ | Q.tà: " + q + "\n";
     if (includeMargine) report += "Margine%: " + getMargineRiv(a).toFixed(2) + "\n";
@@ -537,8 +681,7 @@ function generaTXTReportSenzaMargine(){
 }
 
 // ===============================
-// Preventivi stampabili (Riv / Cliente Finale) + Box Noleggio
-// ✅ ora include Lordo + Sconto (reale o inverso)
+// Preventivi stampabili (Riv / Cliente Finale) + Box Noleggio + Anagrafica
 // ===============================
 function apriPreventivo(variant){
   if (window.track && window.track.open_preventivo) window.track.open_preventivo({ variant: variant });
@@ -549,6 +692,7 @@ function apriPreventivo(variant){
 
   var titolo = (variant === 'cli') ? "Preventivo Cliente Finale" : "Preventivo Rivenditore";
   var margineCli = getMargineCli();
+  var ana = getAnagraficaForVariant(variant);
 
   var rowsHtml = "";
   var tot = 0;
@@ -563,10 +707,8 @@ function apriPreventivo(variant){
 
     var netto = calcNetto(a);
 
-    // servizi unitari
     var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
 
-    // prezzo unitario finale
     var prezzoUnit = 0;
     if (variant === 'cli'){
       prezzoUnit = calcPrezzoConMargine(netto, margineCli);
@@ -574,9 +716,6 @@ function apriPreventivo(variant){
       prezzoUnit = calcPrezzoConMargine(netto, getMargineRiv(a));
     }
 
-    // sconto da mostrare:
-    // - riv: mostra S1 + S2 reali
-    // - cli: sconto inverso calcolato da prezzoUnit vs lordo (bene o totale a seconda selezione)
     var scontoTxt = "";
     if (variant === 'cli'){
       var sInv = calcScontoClientePerc(lordo, prezzoUnit, serv);
@@ -585,7 +724,6 @@ function apriPreventivo(variant){
       scontoTxt = s1.toFixed(2) + "% + " + s2.toFixed(2) + "%";
     }
 
-    // totale riga (prezzoUnit + servizi) * q
     var riga = roundTwo((prezzoUnit + serv) * q);
     tot += riga;
 
@@ -594,7 +732,7 @@ function apriPreventivo(variant){
     rowsHtml += "<td style='text-align:left'>" + esc(a.descrizione) + "</td>";
     rowsHtml += "<td>" + q + "</td>";
     rowsHtml += "<td>" + lordo.toFixed(2) + "€</td>";
-    rowsHtml += "<td>" + scontoTxt + "</td>";
+    rowsHtml += "<td>" + esc(scontoTxt) + "</td>";
     rowsHtml += "<td>" + netto.toFixed(2) + "€</td>";
     if (mostraUnit) rowsHtml += "<td>" + prezzoUnit.toFixed(2) + "€</td>";
     rowsHtml += "<td>" + serv.toFixed(2) + "€</td>";
@@ -613,7 +751,8 @@ function apriPreventivo(variant){
   html += "<style>";
   html += "body{font-family:Arial;margin:18px;color:#111}";
   html += "h1{margin:0 0 6px 0;font-size:20px}";
-  html += ".sub{color:#444;margin-bottom:12px}";
+  html += ".sub{color:#444;margin-bottom:10px}";
+  html += ".box{border:1px solid #e5e7eb;border-radius:10px;padding:10px;background:#fafafa;margin:10px 0}";
   html += "table{width:100%;border-collapse:collapse;margin-top:10px}";
   html += "th,td{border:1px solid #ddd;padding:8px;text-align:center;font-size:12px}";
   html += "th{background:#f3f5f7}";
@@ -624,6 +763,20 @@ function apriPreventivo(variant){
 
   html += "<h1>" + esc(titolo) + "</h1>";
   html += "<div class='sub'>Generato da CSVXpressGold — " + new Date().toLocaleString() + "</div>";
+
+  // Anagrafica (mostra solo se c'è qualcosa)
+  var hasAny = (ana.azienda||ana.referente||ana.indirizzo||ana.email||ana.cell||ana.piva);
+  if (hasAny){
+    html += "<div class='box'>";
+    html += "<div style='font-weight:700;margin-bottom:6px'>Anagrafica</div>";
+    if (ana.azienda)   html += "<div><b>Azienda:</b> " + esc(ana.azienda) + "</div>";
+    if (ana.referente) html += "<div><b>Referente:</b> " + esc(ana.referente) + "</div>";
+    if (ana.indirizzo) html += "<div><b>Indirizzo:</b> " + esc(ana.indirizzo) + "</div>";
+    if (ana.email)     html += "<div><b>Email:</b> " + esc(ana.email) + "</div>";
+    if (ana.cell)      html += "<div><b>Cellulare:</b> " + esc(ana.cell) + "</div>";
+    if (ana.piva)      html += "<div><b>P.IVA / C.F.:</b> " + esc(ana.piva) + "</div>";
+    html += "</div>";
+  }
 
   if (variant === 'cli'){
     html += "<div class='sub'><b>Margine Cliente Finale:</b> " + margineCli.toFixed(2) + "% — <b>Sconto mostrato:</b> inverso (" + esc(getScontoClienteMode()) + ")</div>";
@@ -644,21 +797,20 @@ function apriPreventivo(variant){
   html += "<div style='font-size:18px;margin-top:6px'><b>TOTALE:</b> " + totIva.toFixed(2) + "€</div>";
   html += "</div>";
 
-  // Box noleggio
+  // Box noleggio (opzionale)
   var showNol = byId("noleggioMostraNelPreventivo") && byId("noleggioMostraNelPreventivo").checked;
   if (showNol){
     var durSel = byId("noleggioDurata") ? byId("noleggioDurata").value : 24;
     var outN = calcolaNoleggio(imp, durSel);
-
     var showDettN = byId("noleggioMostraDettagli") && byId("noleggioMostraDettagli").checked;
 
-    html += "<div style='margin-top:14px;border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#fafafa'>";
+    html += "<div class='box'>";
     html += "<div style='font-weight:700;margin-bottom:6px'>Noleggio Operativo (simulazione)</div>";
     html += "<div>Durata: <b>" + esc(String(durSel)) + " mesi</b></div>";
-    html += "<div>Rata mensile: <b>" + esc(formatNumberIT(outN.rata)) + " €</b></div>";
-    html += "<div>Spese contratto: <b>" + esc(formatNumberIT(outN.spese)) + " €</b></div>";
+    html += "<div>Rata mensile: <b>" + formatNumberIT(outN.rata) + " €</b></div>";
+    html += "<div>Spese contratto: <b>" + formatNumberIT(outN.spese) + " €</b></div>";
     if (showDettN){
-      html += "<div>Costo giornaliero: <b>" + esc(formatNumberIT(outN.giorno)) + " €</b> — Costo orario: <b>" + esc(formatNumberIT(outN.ora)) + " €</b></div>";
+      html += "<div>Costo giornaliero: <b>" + formatNumberIT(outN.giorno) + " €</b> — Costo orario: <b>" + formatNumberIT(outN.ora) + " €</b></div>";
       html += "<div style='margin-top:6px;color:#444'>Spese incasso RID: 4,00 € al mese</div>";
     }
     html += "</div>";
@@ -675,7 +827,7 @@ function apriPreventivo(variant){
 }
 
 // ===============================
-// NOLEGGIO (integrato)
+// NOLEGGIO (tabella coefficienti + spese)
 // ===============================
 function formatNumberIT(value) {
   value = (typeof value === "number") ? value : n(value);
