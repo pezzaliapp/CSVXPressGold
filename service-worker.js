@@ -1,6 +1,7 @@
 // service-worker.js — CSVXpressGold
 // Cache-first per asset locali, network-first per CDN
-// Path relativi (./) → OK GitHub Pages
+// Fix importante: per le navigation (index) ignora querystring (?v=...)
+// + caches.match con ignoreSearch per evitare duplicati in cache
 
 const CACHE_NAME = 'csvxpressgold-v1.1.2'; // 🔥 bump versione
 const ASSETS = [
@@ -20,7 +21,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting(); // ⬅️ forza install immediato
+  self.skipWaiting(); // forza install immediato
 });
 
 // ACTIVATE
@@ -29,36 +30,43 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys.map((k) => {
-          if (k !== CACHE_NAME) {
-            return caches.delete(k); // 🧹 elimina vecchie cache
-          }
+          if (k !== CACHE_NAME) return caches.delete(k); // elimina vecchie cache
+          return null;
         })
       )
     )
   );
-  self.clients.claim(); // ⬅️ prende subito controllo
+  self.clients.claim(); // prende controllo subito
 });
 
 // FETCH
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-
-  // solo GET
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
   const isSameOrigin = url.origin === self.location.origin;
   const isCDN = url.hostname.includes('cdnjs.cloudflare.com');
 
-  // CDN → network first
+  // ✅ 1) Navigations (index.html) -> serve sempre la shell ignorando ?v=
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      caches.match('./index.html', { ignoreSearch: true })
+        .then((cached) => cached || fetch(req))
+        .catch(() => caches.match('./index.html', { ignoreSearch: true }))
+    );
+    return;
+  }
+
+  // ✅ 2) CDN -> network first
   if (isCDN) {
     event.respondWith(networkFirst(req));
     return;
   }
 
-  // stessa origin → cache first
+  // ✅ 3) stessa origin -> cache first (ignorando querystring)
   if (isSameOrigin) {
-    event.respondWith(cacheFirst(req));
+    event.respondWith(cacheFirstIgnoreSearch(req));
     return;
   }
 
@@ -68,8 +76,8 @@ self.addEventListener('fetch', (event) => {
 
 // ---------- STRATEGIE ----------
 
-function cacheFirst(req) {
-  return caches.match(req).then((cached) => {
+function cacheFirstIgnoreSearch(req) {
+  return caches.match(req, { ignoreSearch: true }).then((cached) => {
     if (cached) return cached;
 
     return fetch(req)
@@ -80,7 +88,7 @@ function cacheFirst(req) {
         }
         return res;
       })
-      .catch(() => caches.match('./index.html'));
+      .catch(() => caches.match('./index.html', { ignoreSearch: true }));
   });
 }
 
@@ -94,6 +102,7 @@ function networkFirst(req) {
       return res;
     })
     .catch(() =>
-      caches.match(req).then((cached) => cached || caches.match('./index.html'))
+      caches.match(req, { ignoreSearch: true })
+        .then((cached) => cached || caches.match('./index.html', { ignoreSearch: true }))
     );
 }
