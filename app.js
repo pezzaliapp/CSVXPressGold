@@ -467,12 +467,17 @@ function getMargineCli(){
 }
 
 // ===============================
-// Tabella articoli (SERVIZI VISIBILI E MODIFICABILI)
+// Tabella articoli
 // ===============================
-function tdInp(index, field, value, minVal){
+function tdInp(index, field, value, opts){
+  opts = opts || {};
   var v = (typeof value === "number") ? value : n(value);
-  var minAttr = (minVal != null) ? (" min='" + String(minVal) + "'") : "";
-  return "<td><input type='number' value='" + v + "' data-index='" + index + "' data-field='" + field + "'" + minAttr + " oninput='aggiornaCampo(event)'></td>";
+
+  var minAttr  = (opts.min != null)  ? (" min='" + String(opts.min) + "'") : "";
+  var stepAttr = (opts.step != null) ? (" step='" + String(opts.step) + "'") : " step='0.01'";
+
+  return "<td><input type='number' value='" + v + "' data-index='" + index + "' data-field='" + field + "'" +
+         minAttr + stepAttr + " oninput='aggiornaCampo(event)'></td>";
 }
 
 function aggiornaTabellaArticoli() {
@@ -489,8 +494,8 @@ function aggiornaTabellaArticoli() {
 
     var q = clampMin(n(a.quantita), 1);
 
-    // ✅ Servizi SEMPRE presenti in riga (visibili e modificabili)
-    var trp = n(a.costoTrasporto);
+    // servizi unitari
+    var trp  = n(a.costoTrasporto);
     var inst = n(a.costoInstallazione);
     var serv = trp + inst;
 
@@ -501,18 +506,19 @@ function aggiornaTabellaArticoli() {
 
     var tr = createEl("tr");
     tr.innerHTML =
+      // ordine IDENTICO al THEAD di index.html
       "<td>" + esc(a.codice) + "</td>" +
       "<td>" + esc(a.descrizione) + "</td>" +
       "<td>" + n(a.prezzoLordo).toFixed(2) + "€</td>" +
-      tdInp(i,"sconto", n(a.sconto)) +
-      tdInp(i,"sconto2", n(a.sconto2)) +
-      tdInp(i,"margine", n(a.margine)) +
+      tdInp(i,"sconto", n(a.sconto), { min: 0, step: 0.01 }) +
+      tdInp(i,"sconto2", n(a.sconto2), { min: 0, step: 0.01 }) +
+      tdInp(i,"margine", n(a.margine), { min: 0, step: 0.01 }) +
       "<td>" + netto.toFixed(2) + "€</td>" +
-      tdInp(i,"costoTrasporto", trp) +
-      tdInp(i,"costoInstallazione", inst) +
-      tdInp(i,"quantita", q, 1) +
+      tdInp(i,"costoTrasporto", trp, { min: 0, step: 0.01 }) +
+      tdInp(i,"costoInstallazione", inst, { min: 0, step: 0.01 }) +
+      tdInp(i,"quantita", q, { min: 1, step: 1 }) +
       "<td>" + totRiv.toFixed(2) + "€</td>" +
-      tdInp(i,"venduto", venduto) +
+      tdInp(i,"venduto", venduto, { min: 0, step: 0.01 }) +
       "<td>" + diff.toFixed(2) + "€</td>" +
       "<td><button type='button' onclick='rimuoviArticolo(" + i + ")'>Rimuovi</button></td>";
 
@@ -526,8 +532,16 @@ function aggiornaCampo(event) {
   var field = input.getAttribute("data-field");
 
   var val = n(input.value);
-  if ((field==="sconto" || field==="sconto2" || field==="margine") && val < 0) val = 0;
-  if (field==="quantita" && val < 1) val = 1;
+
+  // clamp
+  if (field === "quantita") {
+    if (val < 1) val = 1;
+    val = Math.round(val); // quantità intera
+  } else {
+    if (field==="sconto" || field==="sconto2" || field==="margine" || field==="costoTrasporto" || field==="costoInstallazione" || field==="venduto"){
+      if (val < 0) val = 0;
+    }
+  }
 
   articoliAggiunti[index][field] = val;
 
@@ -560,13 +574,16 @@ function aggiornaTotaliGenerali() {
     var netto = calcNetto(a);
     var prezzoRiv = calcPrezzoConMargine(netto, getMargineRiv(a));
 
-    var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
+    var trp  = n(a.costoTrasporto);
+    var inst = n(a.costoInstallazione);
+    var serv = trp + inst;
+
     var totRigaRiv = roundTwo((prezzoRiv + serv) * q);
 
     var venduto = n(a.venduto);
     var diff = roundTwo(venduto - totRigaRiv);
 
-    totNetto += netto * q;
+    totNetto += (netto * q);
     totRiv += totRigaRiv;
     totVend += venduto;
     totDiff += diff;
@@ -576,15 +593,15 @@ function aggiornaTotaliGenerali() {
   if (!holder) return;
 
   var html = "";
-  html += "<strong>Totale Netto (dopo sconti):</strong> " + totNetto.toFixed(2) + "€<br>";
-  html += "<strong>Totale Preventivo Rivenditore (margine + servizi):</strong> " + totRiv.toFixed(2) + "€<br>";
-  html += "<strong>Totale Venduto (se compilato):</strong> " + totVend.toFixed(2) + "€<br>";
-  html += "<strong>Totale Differenza:</strong> " + totDiff.toFixed(2) + "€";
+  html += "<strong>Totale Netto (dopo sconti):</strong> " + roundTwo(totNetto).toFixed(2) + "€<br>";
+  html += "<strong>Totale Preventivo Rivenditore (margine + servizi):</strong> " + roundTwo(totRiv).toFixed(2) + "€<br>";
+  html += "<strong>Totale Venduto (se compilato):</strong> " + roundTwo(totVend).toFixed(2) + "€<br>";
+  html += "<strong>Totale Differenza:</strong> " + roundTwo(totDiff).toFixed(2) + "€";
   holder.innerHTML = html;
 }
 
 // ===============================
-// Aggiunta manuale (SERVIZI VISIBILI E MODIFICABILI)
+// Aggiunta manuale
 // ===============================
 function mostraFormArticoloManuale() {
   var tbody = document.querySelector("#articoli-table tbody");
@@ -593,21 +610,24 @@ function mostraFormArticoloManuale() {
 
   var tr = createEl("tr");
   tr.id = "manual-input-row";
+
+  // ordine IDENTICO al THEAD di index.html
   tr.innerHTML =
     "<td><input type='text' id='manualCodice' placeholder='Codice'></td>" +
     "<td><input type='text' id='manualDescrizione' placeholder='Descrizione'></td>" +
     "<td><input type='number' id='manualPrezzo' placeholder='€' step='0.01'></td>" +
-    "<td><input type='number' id='manualSconto1' placeholder='%' value='0' step='0.01'></td>" +
-    "<td><input type='number' id='manualSconto2' placeholder='%' value='0' step='0.01'></td>" +
-    "<td><input type='number' id='manualMargine' placeholder='%' value='0' step='0.01'></td>" +
+    "<td><input type='number' id='manualSconto1' placeholder='%' value='0' step='0.01' min='0'></td>" +
+    "<td><input type='number' id='manualSconto2' placeholder='%' value='0' step='0.01' min='0'></td>" +
+    "<td><input type='number' id='manualMargine' placeholder='%' value='0' step='0.01' min='0'></td>" +
     "<td><span id='manualNetto'>—</span></td>" +
-    "<td><input type='number' id='manualTrasporto' placeholder='€' value='0' step='0.01'></td>" +
-    "<td><input type='number' id='manualInstallazione' placeholder='€' value='0' step='0.01'></td>" +
-    "<td><input type='number' id='manualQuantita' placeholder='1' value='1' min='1'></td>" +
+    "<td><input type='number' id='manualTrasporto' placeholder='€' value='0' step='0.01' min='0'></td>" +
+    "<td><input type='number' id='manualInstallazione' placeholder='€' value='0' step='0.01' min='0'></td>" +
+    "<td><input type='number' id='manualQuantita' placeholder='1' value='1' min='1' step='1'></td>" +
     "<td><span id='manualTotRiv'>—</span></td>" +
-    "<td><input type='number' id='manualVenduto' placeholder='€' value='0' step='0.01'></td>" +
+    "<td><input type='number' id='manualVenduto' placeholder='€' value='0' step='0.01' min='0'></td>" +
     "<td><span id='manualDiff'>—</span></td>" +
-    "<td><button type='button' onclick='aggiungiArticoloManuale()'>✅</button> <button type='button' onclick='annullaArticoloManuale()'>❌</button></td>";
+    "<td><button type='button' onclick='aggiungiArticoloManuale()'>✅</button> " +
+      "<button type='button' onclick='annullaArticoloManuale()'>❌</button></td>";
 
   tbody.appendChild(tr);
 
@@ -615,6 +635,7 @@ function mostraFormArticoloManuale() {
   for (var i=0;i<ids.length;i++){
     byId(ids[i]).addEventListener("input", calcolaRigaManuale, false);
   }
+
   calcolaRigaManuale();
 }
 
@@ -622,14 +643,19 @@ function calcolaRigaManuale(){
   var prezzoLordo = n(byId("manualPrezzo").value);
   var s1 = n(byId("manualSconto1").value);
   var s2 = n(byId("manualSconto2").value);
-  var m = n(byId("manualMargine").value);
-  var trp = n(byId("manualTrasporto").value);
+  var m  = n(byId("manualMargine").value);
+
+  var trp  = n(byId("manualTrasporto").value);
   var inst = n(byId("manualInstallazione").value);
+
   var q = clampMin(n(byId("manualQuantita").value), 1);
+  q = Math.round(q);
+
   var vend = n(byId("manualVenduto").value);
 
   var netto = roundTwo(prezzoLordo * (1 - s1/100) * (1 - s2/100));
   var mEff = (m > 0) ? m : n(byId("margineRivDefault").value);
+
   var prezzoRiv = calcPrezzoConMargine(netto, mEff);
   var totRiv = roundTwo((prezzoRiv + trp + inst) * q);
   var diff = roundTwo(vend - totRiv);
@@ -651,13 +677,15 @@ function aggiungiArticoloManuale(){
     margine: n(byId("manualMargine").value),
     costoTrasporto: n(byId("manualTrasporto").value),
     costoInstallazione: n(byId("manualInstallazione").value),
-    quantita: clampMin(n(byId("manualQuantita").value), 1),
+    quantita: Math.round(clampMin(n(byId("manualQuantita").value), 1)),
     venduto: n(byId("manualVenduto").value)
   };
 
-  // ✅ NON azzeriamo i servizi: l'opzione "autoPopolaCosti" serve solo a popolare da CSV,
-  // non a togliere i campi o bloccarli.
-  // Se vuoi davvero azzerare manualmente, lo fai tu nei campi.
+  // se non autopopolo, lascio comunque i campi editabili ma default a 0
+  if (!autoPopolaCosti){
+    nuovo.costoTrasporto = 0;
+    nuovo.costoInstallazione = 0;
+  }
 
   articoliAggiunti.push(nuovo);
   annullaArticoloManuale();
@@ -669,9 +697,7 @@ function aggiungiArticoloManuale(){
 function annullaArticoloManuale(){
   var row = byId("manual-input-row");
   if (row && row.parentNode) row.parentNode.removeChild(row);
-}
-
-// ===============================
+}// ===============================
 // Report TXT / WhatsApp (SERVIZI opzionali nei report)
 // ===============================
 function generaReportTesto(includeMargine){
