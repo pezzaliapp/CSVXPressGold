@@ -2,7 +2,7 @@
 // Cache-first per asset locali, network-first per CDN
 // Path relativi (./) → OK GitHub Pages
 
-const CACHE_NAME = 'csvxpressgold-v1.1.1'; // 🔥 bump versione
+const CACHE_NAME = 'csvxpressgold-v1.1.2'; // 🔥 bump versione
 const ASSETS = [
   './',
   './index.html',
