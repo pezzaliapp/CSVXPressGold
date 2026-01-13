@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-app="CSVXpressGold" data-ver="1.1.0">
+<html lang="it" data-app="CSVXpressGold" data-ver="1.1.1">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -141,6 +141,24 @@
 
     <section id="preventivi-section" data-zone="preventivi">
       <h2>Preventivi</h2>
+
+      <!-- ✅ NUOVO: scelta calcolo sconto cliente -->
+      <div class="panel">
+        <h3>Sconto Cliente Finale (calcolo inverso)</h3>
+
+        <label class="check" style="display:block;margin:6px 0;">
+          <input type="radio" name="scontoClienteMode" value="bene" checked>
+          Calcola sconto sul solo bene (Prezzo Lordo di listino)
+        </label>
+
+        <label class="check" style="display:block;margin:6px 0;">
+          <input type="radio" name="scontoClienteMode" value="totale">
+          Calcola sconto sul totale (bene + trasporto + installazione)
+        </label>
+
+        <div class="mini">Il preventivo Cliente Finale mostrerà: Prezzo Lordo → Sconto% → Prezzo Finale.</div>
+      </div>
+
       <div class="row">
         <button id="btnPrevRiv" type="button">Apri Preventivo Rivenditore (Stampa)</button>
         <button id="btnPrevCli" type="button">Apri Preventivo Cliente Finale (Stampa)</button>
