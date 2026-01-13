@@ -1,8 +1,8 @@
 // service-worker.js — CSVXpressGold
-// Cache-first per asset, network-first per CDN con fallback.
-// IMPORTANT: usa path relativi (./) -> ok su GitHub Pages.
+// Cache-first per asset locali, network-first per CDN
+// Path relativi (./) → OK GitHub Pages
 
-const CACHE_NAME = 'csvxpressgold-v1.1.0';
+const CACHE_NAME = 'csvxpressgold-v1.1.1'; // 🔥 bump versione
 const ASSETS = [
   './',
   './index.html',
@@ -15,57 +15,65 @@ const ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js'
 ];
 
+// INSTALL
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
+  self.skipWaiting(); // ⬅️ forza install immediato
 });
 
+// ACTIVATE
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null))
+        keys.map((k) => {
+          if (k !== CACHE_NAME) {
+            return caches.delete(k); // 🧹 elimina vecchie cache
+          }
+        })
       )
     )
   );
-  self.clients.claim();
+  self.clients.claim(); // ⬅️ prende subito controllo
 });
 
-// Strategia:
-// - stessa origin: cache-first (veloce, offline)
-// - CDN: network-first con fallback a cache (riduce problemi di CORS/aggiornamento)
+// FETCH
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  const url = new URL(req.url);
 
-  // Solo GET
+  // solo GET
   if (req.method !== 'GET') return;
 
+  const url = new URL(req.url);
   const isSameOrigin = url.origin === self.location.origin;
   const isCDN = url.hostname.includes('cdnjs.cloudflare.com');
 
+  // CDN → network first
   if (isCDN) {
     event.respondWith(networkFirst(req));
     return;
   }
 
+  // stessa origin → cache first
   if (isSameOrigin) {
     event.respondWith(cacheFirst(req));
     return;
   }
 
-  // default
+  // fallback
   event.respondWith(networkFirst(req));
 });
+
+// ---------- STRATEGIE ----------
 
 function cacheFirst(req) {
   return caches.match(req).then((cached) => {
     if (cached) return cached;
+
     return fetch(req)
       .then((res) => {
-        // metti in cache solo risposte valide
         if (res && res.status === 200) {
           const copy = res.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
@@ -85,5 +93,7 @@ function networkFirst(req) {
       }
       return res;
     })
-    .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html')));
+    .catch(() =>
+      caches.match(req).then((cached) => cached || caches.match('./index.html'))
+    );
 }
