@@ -984,7 +984,7 @@ function openPrintableQuote(variant) {
   var hasAny = (ana.azienda || ana.referente || ana.indirizzo || ana.email || ana.cell || ana.piva || ana.cf || ana.note);
   if (hasAny) {
     html += "<div class='box'>";
-    html += "<div style='font-weight:700;margin-bottom:6px'>Anagrafica (" + escapeHtml(ana._label || "Dati") + ")</div>";
+    html += "<div style='font-weight:700;margin-bottom:6px'>Anagrafica</div>";
     if (ana.azienda) html += "<div><b>Azienda:</b> " + escapeHtml(ana.azienda) + "</div>";
     if (ana.referente) html += "<div><b>Referente:</b> " + escapeHtml(ana.referente) + "</div>";
     if (ana.indirizzo) html += "<div><b>Indirizzo:</b> " + escapeHtml(ana.indirizzo) + "</div>";
