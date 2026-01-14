@@ -203,7 +203,11 @@ document.addEventListener("DOMContentLoaded", function () {
   if (btnNT) btnNT.addEventListener("click", scaricaNoleggioTXT, false);
 
   var mCli = byId("margineCliDefault");
-  if (mCli) mCli.addEventListener("input", aggiornaBoxNoleggio, false);
+if (mCli) mCli.addEventListener("input", function(){
+  aggiornaTabellaArticoli();      // per aggiornare il valore visibile in colonna Margine%
+  aggiornaTotaliGenerali();
+  aggiornaBoxNoleggio();
+}, false);
 
   var mRiv = byId("margineRivDefault");
   if (mRiv) mRiv.addEventListener("input", aggiornaBoxNoleggio, false);
