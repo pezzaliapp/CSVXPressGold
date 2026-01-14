@@ -970,12 +970,11 @@ function getTotaleImponibileDaArticoli(variant){
 
     var netto = calcNetto(a);
 
-    var prezzoUnit = 0;
-    if (variant === 'cli'){
-      prezzoUnit = calcPrezzoConMargine(netto, getMargineCli());
-    } else {
-      prezzoUnit = calcPrezzoConMargine(netto, getMargineRiv(a));
-    }
+    // Margine sempre CLIENTE FINALE:
+// se la riga ha un margine > 0 usa quello,
+// altrimenti usa il Margine Cliente di default
+var margineEff = n(a.margine) > 0 ? n(a.margine) : getMargineCli();
+var prezzoUnit = calcPrezzoConMargine(netto, margineEff);
 
     var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
     var riga = roundTwo((prezzoUnit + serv) * q);
