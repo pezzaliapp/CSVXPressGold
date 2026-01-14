@@ -381,11 +381,17 @@ function calcPrezzoConMargine(netto, marginePerc){
   if (marginePerc >= 99.99) marginePerc = 99.99;
   return roundTwo(netto / (1 - marginePerc/100));
 }
+function getMargineDefaultCliente(){
+  var def = byId("margineCliDefault");
+  return def ? n(def.value) : 0;
+}
+
+// Mantengo il nome getMargineRiv per non cambiare tutti i punti dove viene usata.
+// Ma ORA: il default è quello del Cliente Finale.
 function getMargineRiv(a){
   var m = n(a.margine);
   if (m > 0) return m;
-  var def = byId("margineRivDefault");
-  return def ? n(def.value) : 0;
+  return getMargineDefaultCliente();
 }
 function getMargineCli(){
   var def = byId("margineCliDefault");
