@@ -1268,12 +1268,19 @@ function downloadRentalTXT() {
 
   var durEl = getEl("noleggioDurata");
   var durSel = durEl ? parseInt(durEl.value, 10) : 24;
+  if (!durSel || durSel <= 0) durSel = 24;
 
   var cfg = getNoleggioConfig();
   var out = calcolaNoleggio(taxable, durSel, cfg);
 
   var canoni = calcolaCanoniPerDurate(taxable);
   var speseContratto = calcolaSpeseContratto(taxable);
+
+  var showDett = getEl("noleggioMostraDettagli") && getEl("noleggioMostraDettagli").checked;
+  var showTable = getEl("noleggioMostraTabellaCanoni") && getEl("noleggioMostraTabellaCanoni").checked;
+
+  // UNA SOLA rata da mostrare coerente con includiRID
+  var rataShown = cfg.includiRID ? toNumber(out.rataMostrata) : toNumber(out.rataBase);
 
   var testo = "";
   testo += "PREVENTIVO DI NOLEGGIO OPERATIVO BCC (simulazione)\n";
@@ -1285,30 +1292,29 @@ function downloadRentalTXT() {
   testo += "RID incluso nella rata mostrata: " + (cfg.includiRID ? "SI" : "NO") + "\n";
   testo += "Parametri: " + cfg.giorniMese + " gg/mese — " + cfg.oreGiorno + " ore/giorno\n\n";
 
-  testo += "RATA MENSILE (base): " + formatNumberIT(out.rataBase) + " €\n";
-  testo += "RATA MENSILE (mostrata): " + formatNumberIT(out.rataMostrata) + " €\n";
+  testo += "RATA MENSILE: " + formatNumberIT(rataShown) + " €";
+  testo += cfg.includiRID ? " (all-in)\n" : " (base)\n";
   testo += "Spese di contratto: " + formatNumberIT(speseContratto) + " €\n\n";
 
-  testo += "Costo giornaliero (rata mostrata): " + formatNumberIT(out.giorno) + " €\n";
-  testo += "Costo orario (rata mostrata): " + formatNumberIT(out.ora) + " €\n\n";
+  if (showDett) {
+    testo += "Costo giornaliero: " + formatNumberIT(out.giorno) + " €\n";
+    testo += "Costo orario: " + formatNumberIT(out.ora) + " €\n\n";
+  }
 
-  testo += "CANONI MENSILI DISPONIBILI (base):\n";
-  testo += "12 mesi: " + formatNumberIT(canoni[12]) + " €\n";
-  testo += "18 mesi: " + formatNumberIT(canoni[18]) + " €\n";
-  testo += "24 mesi: " + formatNumberIT(canoni[24]) + " €\n";
-  testo += "36 mesi: " + formatNumberIT(canoni[36]) + " €\n";
-  testo += "48 mesi: " + formatNumberIT(canoni[48]) + " €\n";
-  testo += "60 mesi: " + formatNumberIT(canoni[60]) + " €\n";
+  // UNA SOLA tabella canoni (coerente con includiRID)
+  if (showTable) {
+    testo += "CANONI MENSILI DISPONIBILI" + (cfg.includiRID ? " (all-in):\n" : " (base):\n");
+    var mesiList = [12, 18, 24, 36, 48, 60];
+    for (var i = 0; i < mesiList.length; i++) {
+      var m = mesiList[i];
+      var base = toNumber(canoni[m] || 0);
+      var shown = cfg.includiRID ? (base + toNumber(cfg.ridMensile)) : base;
+      testo += (String(m).padStart ? String(m).padStart(2, " ") : String(m)) + " mesi: " + formatNumberIT(shown) + " €\n";
+    }
+    testo += "\n";
+  }
 
-  testo += "\nCANONI MENSILI DISPONIBILI (mostrati):\n";
-  testo += "12 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[12] + cfg.ridMensile) : canoni[12]) + " €\n";
-  testo += "18 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[18] + cfg.ridMensile) : canoni[18]) + " €\n";
-  testo += "24 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[24] + cfg.ridMensile) : canoni[24]) + " €\n";
-  testo += "36 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[36] + cfg.ridMensile) : canoni[36]) + " €\n";
-  testo += "48 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[48] + cfg.ridMensile) : canoni[48]) + " €\n";
-  testo += "60 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[60] + cfg.ridMensile) : canoni[60]) + " €\n";
-
-  testo += "\nBENEFICI FISCALI:\n";
+  testo += "BENEFICI FISCALI:\n";
   testo += "- Canone interamente deducibile.\n";
   testo += "- Il bene non entra nei cespiti.\n";
   testo += "- Nessuna incidenza su IRAP.\n\n";
