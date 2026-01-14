@@ -272,6 +272,22 @@ document.addEventListener("DOMContentLoaded", function () {
   var btnNT = getEl("btnNoleggioTXT");
   if (btnNT) btnNT.addEventListener("click", downloadRentalTXT, false);
 
+    // ✅ Noleggio avanzato (se presenti i campi in HTML)
+  var elGm = getEl("noleggioGiorniMese");
+  if (elGm) elGm.addEventListener("input", updateRentalBox, false);
+
+  var elOg = getEl("noleggioOreGiorno");
+  if (elOg) elOg.addEventListener("input", updateRentalBox, false);
+
+  var elRid = getEl("noleggioRidMensile");
+  if (elRid) elRid.addEventListener("input", updateRentalBox, false);
+
+  var elIncRid = getEl("noleggioIncludiRID");
+  if (elIncRid) elIncRid.addEventListener("change", updateRentalBox, false);
+
+  var elTab = getEl("noleggioMostraTabellaCanoni");
+  if (elTab) elTab.addEventListener("change", updateRentalBox, false);
+
   // ✅ Fix: se cambio default cliente (es. 25), le righe con margine=0 si aggiornano subito
   var defaultCustomerMarginInput = getEl("margineCliDefault");
   if (defaultCustomerMarginInput) {
