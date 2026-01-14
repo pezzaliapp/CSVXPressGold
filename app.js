@@ -781,96 +781,169 @@ function annullaArticoloManuale() {
 }
 
 // ===============================
-// Report TXT / WhatsApp
+// REPORT WhatsApp (definitivo)
+// - include SEMPRE: Codice articolo + Prezzo netto
+// - include SEMPRE: dicitura "prezzi IVA esclusa"
+// - Rivenditore: mostra lordo, sconti, netto, margine, servizi (se toggle attivo), totale riga
+// - Cliente: mostra netto unitario, qty, "chiavi in mano", totale riga (IVA esclusa)
 // ===============================
-function generaReportTesto(includeMargine) {
-  var showServ = getEl("toggleMostraServizi") && getEl("toggleMostraServizi").checked;
 
-  var report = includeMargine
-    ? "Report Articoli (Rivenditore - con Margine)\n\n"
-    : "Report Articoli (Netto - senza Margine)\n\n";
+// Alias comodi (se in futuro cambi nomi)
+function getShowServiziReport() {
+  return !!(getEl("toggleMostraServizi") && getEl("toggleMostraServizi").checked);
+}
+
+// Formattazione € per WhatsApp (niente simboli strani, sempre IT)
+function moneyIT(v) {
+  return formatNumberIT(toNumber(v)) + " €";
+}
+
+// Separatore semplice (WhatsApp friendly)
+function waLine() {
+  return "────────────────────";
+}
+
+// Header comune
+function waHeader(title) {
+  return "📄 *" + title + "*\n_(prezzi IVA esclusa)_\n\n";
+}
+
+// Righe articolo - RIVENDITORE
+function waItemRiv(item, idx, showServ) {
+  var codice = (item.codice || "").trim();
+  var descr = (item.descrizione || "").trim();
+
+  var qty = Math.round(clampMin(toNumber(item.quantita), 1));
+  var lordo = toNumber(item.prezzoLordo);
+  var s1 = toNumber(item.sconto);
+  var s2 = toNumber(item.sconto2);
+
+  var netto = calcNetto(item);
+
+  var shipping = toNumber(item.costoTrasporto);
+  var install = toNumber(item.costoInstallazione);
+  var servicesUnit = shipping + install;
+
+  // prezzo unitario (bene+margine)
+  var mEff = getEffectiveRowMargin(item);
+  var unitWithMargin = calcPriceWithMargin(netto, mEff);
+
+  // totale riga riv = (bene+margine + servizi) * qty
+  var totRow = round2((unitWithMargin + servicesUnit) * qty);
+
+  var out = "";
+  out += waLine() + "\n";
+  out += "🧾 *" + escapeHtml(descr || ("Articolo " + (idx + 1))) + "*\n";
+  if (codice) out += "Codice articolo: " + escapeHtml(codice) + "\n\n";
+
+  out += "• Prezzo lordo: " + moneyIT(lordo) + "\n";
+  out += "• Sconto: S1 " + formatNumberIT(s1) + "% – S2 " + formatNumberIT(s2) + "%\n";
+  out += "• Prezzo netto: " + moneyIT(netto) + "\n";
+  out += "• Quantità: " + qty + "\n";
+
+  // Margine (riv) sempre utile
+  out += "• Margine%: " + formatNumberIT(mEff) + "%\n";
+
+  if (showServ) {
+    out += "\n🚚 Trasporto: " + moneyIT(shipping) + "\n";
+    out += "🛠 Installazione: " + moneyIT(install) + "\n";
+  } else {
+    // anche se non mostro i servizi, il totale li include comunque (logica tua attuale)
+    out += "\n_(Totale riga include eventuali servizi)_\n";
+  }
+
+  out += "\n💰 *Totale riga*: " + moneyIT(totRow) + "\n";
+  out += waLine() + "\n";
+
+  return { text: out, rowTotal: totRow };
+}
+
+// Righe articolo - CLIENTE FINALE
+function waItemCli(item, idx) {
+  var codice = (item.codice || "").trim();
+  var descr = (item.descrizione || "").trim();
+
+  var qty = Math.round(clampMin(toNumber(item.quantita), 1));
+  var netto = calcNetto(item);
+
+  // margine effettivo (0 => default cliente)
+  var mEff = getEffectiveRowMargin(item);
+
+  var shipping = toNumber(item.costoTrasporto);
+  var install = toNumber(item.costoInstallazione);
+  var servicesUnit = shipping + install;
+
+  // cliente: prezzo unitario finale "chiavi in mano" = (netto+margine) + servizi
+  var unitWithMargin = calcPriceWithMargin(netto, mEff);
+  var unitFinal = round2(unitWithMargin + servicesUnit);
+
+  var totRow = round2(unitFinal * qty);
+
+  var out = "";
+  out += waLine() + "\n";
+  out += "🧾 *" + escapeHtml(descr || ("Articolo " + (idx + 1))) + "*\n";
+  if (codice) out += "Codice articolo: " + escapeHtml(codice) + "\n\n";
+
+  out += "• Quantità: " + qty + "\n";
+  out += "• Prezzo netto unitario: " + moneyIT(netto) + "\n";
+  out += "• Fornitura chiavi in mano\n";
+  out += "  (prodotto + trasporto + installazione)\n";
+  out += "\n💰 *Totale*: " + moneyIT(totRow) + "\n";
+  out += waLine() + "\n";
+
+  return { text: out, rowTotal: totRow };
+}
+
+// Generatore unico report WhatsApp
+// variant: "riv" | "cli"
+function generateWhatsAppReport(variant) {
+  variant = (variant === "cli") ? "cli" : "riv";
+
+  if (!quoteItems || !quoteItems.length) {
+    alert("Aggiungi almeno un articolo prima di generare il report.");
+    return "";
+  }
+
+  var showServ = getShowServiziReport();
+
+  var title = (variant === "cli")
+    ? "PREVENTIVO – CLIENTE FINALE"
+    : "REPORT ARTICOLI – RIVENDITORE";
+
+  var text = waHeader(title);
 
   var tot = 0;
 
   for (var i = 0; i < quoteItems.length; i++) {
     var item = quoteItems[i];
-    var qty = clampMin(toNumber(item.quantita), 1);
-    qty = Math.round(qty);
 
-    var lordo = toNumber(item.prezzoLordo);
-    var s1 = toNumber(item.sconto);
-    var s2 = toNumber(item.sconto2);
-    var netto = calcNetto(item);
+    var pack = (variant === "cli")
+      ? waItemCli(item, i)
+      : waItemRiv(item, i, showServ);
 
-    var shipping = toNumber(item.costoTrasporto);
-    var install = toNumber(item.costoInstallazione);
-    var servicesUnit = shipping + install;
-
-    var line = 0;
-
-    if (includeMargine) {
-      var priceWithMargin = calcPriceWithMargin(netto, getEffectiveRowMargin(item));
-      line = (priceWithMargin + servicesUnit) * qty;
-    } else {
-      line = (netto + servicesUnit) * qty;
-    }
-
-    line = round2(line);
-    tot += line;
-
-    report += (i + 1) + ". " + (item.codice || "") + " — " + (item.descrizione || "") + "\n";
-    report += "Lordo: " + lordo.toFixed(2) + "€ | S1: " + s1.toFixed(2) + "% | S2: " + s2.toFixed(2) + "%\n";
-    report += "Netto: " + netto.toFixed(2) + "€ | Q.tà: " + qty + "\n";
-    if (includeMargine) report += "Margine%: " + getEffectiveRowMargin(item).toFixed(2) + "\n";
-    if (showServ) report += "Trasporto: " + shipping.toFixed(2) + "€ | Installazione: " + install.toFixed(2) + "€\n";
-    report += "Totale Riga: " + line.toFixed(2) + "€\n\n";
+    text += pack.text + "\n";
+    tot += pack.rowTotal;
   }
 
-  report += "TOTALE: " + round2(tot).toFixed(2) + "€\n";
-  return report;
+  tot = round2(tot);
+
+  text += "🔢 *TOTALE PREVENTIVO*\n";
+  text += "➡️ *" + moneyIT(tot) + "*\n";
+  text += "_(IVA esclusa)_\n";
+
+  return text;
 }
 
-function shareWhatsApp(text) {
-  var appUrl = "whatsapp://send?text=" + encodeURIComponent(text);
-  var webUrl = "https://api.whatsapp.com/send?text=" + encodeURIComponent(text);
-  setTimeout(function () { window.open(webUrl, "_blank"); }, 800);
-  window.location = appUrl;
-}
-
-function openText(content) {
-  var w = window.open("", "_blank");
-  if (!w) { alert("Popup bloccato: abilita l'apertura finestre o usa Safari."); return; }
-  w.document.open();
-  w.document.write(
-    "<!doctype html><html><head><meta charset='utf-8'><title>TXT</title></head>" +
-    "<body style='font-family:monospace;white-space:pre-wrap;padding:12px;'>" +
-    escapeHtml(content) +
-    "</body></html>"
-  );
-  w.document.close();
-}
-
+// Wrapper comodi (da bottoni o funzioni esistenti)
 function sendWhatsAppReport() {
-  if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: "standard" });
-  shareWhatsApp(generaReportTesto(true));
-}
-function exportTxtReport() {
-  if (window.track && window.track.export_txt) window.track.export_txt({ variant: "standard" });
-  openText(generaReportTesto(true));
-}
-function sendWhatsAppReportNoMargin() {
-  if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: "no_margin" });
-  shareWhatsApp(generaReportTesto(false));
-}
-function exportTxtReportNoMargin() {
-  if (window.track && window.track.export_txt) window.track.export_txt({ variant: "no_margin" });
-  openText(generaReportTesto(false));
+  if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: "riv" });
+  shareWhatsApp(generateWhatsAppReport("riv"));
 }
 
-function inviaReportWhatsApp(){ sendWhatsAppReport(); }
-function generaTXTReport(){ exportTxtReport(); }
-function inviaReportWhatsAppSenzaMargine(){ sendWhatsAppReportNoMargin(); }
-function generaTXTReportSenzaMargine(){ exportTxtReportNoMargin(); }
+function sendWhatsAppReportCliente() {
+  if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: "cli" });
+  shareWhatsApp(generateWhatsAppReport("cli"));
+}
 
 // ===============================
 // Preventivi stampabili (Riv / Cliente Finale)
