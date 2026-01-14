@@ -1,9 +1,10 @@
 // ===============================
-// CSVXpressGold — app.js (FULL) — vNext
+// CSVXpressGold — app.js (FULL) — vNext (UPDATED)
 // Fix: cambio "Margine Cliente Finale % (default)" aggiorna subito le righe con margine=0
 // Tabella: servizi VISIBILI e modificabili
 // Preventivo Cliente: servizi INCLUSI ma NON mostrati
 // Preventivo Riv: servizi opzionali (toggleMostraServizi)
+// + Noleggio avanzato: RID variabile, includi RID, giorni/mese, ore/giorno, tabella canoni opzionale
 // ===============================
 
 // -------------------------------
@@ -27,7 +28,7 @@ var priceList = [];          // ex: listino
 var quoteItems = [];         // ex: articoliAggiunti
 var autoFillServices = true; // ex: autoPopolaCosti
 
-// Alias retro-compatibilità (se qualche altro file usa i vecchi nomi)
+// Alias retro-compatibilità
 var listino = priceList;
 var articoliAggiunti = quoteItems;
 var autoPopolaCosti = autoFillServices;
@@ -184,6 +185,7 @@ function getAnagraficaForVariant(variant) {
   a._variant = variant;
   return a;
 }
+
 // ===============================
 // Bootstrap
 // ===============================
@@ -272,7 +274,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var btnNT = getEl("btnNoleggioTXT");
   if (btnNT) btnNT.addEventListener("click", downloadRentalTXT, false);
 
-    // ✅ Noleggio avanzato (se presenti i campi in HTML)
+  // ✅ Noleggio avanzato (se presenti i campi in HTML)
   var elGm = getEl("noleggioGiorniMese");
   if (elGm) elGm.addEventListener("input", updateRentalBox, false);
 
@@ -288,7 +290,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var elTab = getEl("noleggioMostraTabellaCanoni");
   if (elTab) elTab.addEventListener("change", updateRentalBox, false);
 
-  // ✅ Fix: se cambio default cliente (es. 25), le righe con margine=0 si aggiornano subito
+  // ✅ Fix: se cambio default cliente, le righe con margine=0 si aggiornano subito
   var defaultCustomerMarginInput = getEl("margineCliDefault");
   if (defaultCustomerMarginInput) {
     defaultCustomerMarginInput.addEventListener(
@@ -317,7 +319,6 @@ document.addEventListener("DOMContentLoaded", function () {
   updateTotals();
   updateRentalBox();
 });
-
 // ===============================
 // Modalità Sconto Cliente Finale
 // ===============================
@@ -479,6 +480,7 @@ function addItemFromPriceList() {
   updateTotals();
   updateRentalBox();
 }
+
 // ===============================
 // Calcoli (Margine)
 // ===============================
@@ -507,15 +509,13 @@ function getEffectiveRowMargin(item) {
   return m > 0 ? m : getDefaultCustomerMargin();
 }
 
-// Mantengo nome storico (se richiamato altrove)
-// Ora: riv usa margine riga (se >0) altrimenti default cliente
+// Mantengo nome storico
 function getMargineRiv(item) {
   return getEffectiveRowMargin(item);
 }
 function getMargineCli() {
   return getDefaultCustomerMargin();
 }
-
 // ===============================
 // Tabella articoli
 // ===============================
@@ -540,7 +540,6 @@ function tdInputNumber(index, field, value, opts) {
   );
 }
 
-// FUNZIONE STORICA: non rinomino perché è richiamata inline dall'HTML
 function aggiornaTabellaArticoli() {
   renderItemsTable();
 }
@@ -563,7 +562,7 @@ function renderItemsTable() {
     var install = toNumber(item.costoInstallazione);
     var servicesUnit = shipping + install;
 
-    // ✅ prezzo riv con margine effettivo (default dinamico se margine=0)
+    // prezzo riv con margine effettivo
     var marginEff = getEffectiveRowMargin(item);
     var priceWithMargin = calcPriceWithMargin(netto, marginEff);
 
@@ -572,8 +571,7 @@ function renderItemsTable() {
     var sold = toNumber(item.venduto);
     var diff = round2(sold - totalRowRiv);
 
-    // ✅ valore mostrato nella cella margine:
-    // se margine riga=0 -> mostra il default corrente (es. 25)
+    // se margine riga=0 -> mostra default corrente
     var marginDisplayed = marginEff;
 
     var tr = el("tr");
@@ -596,11 +594,9 @@ function renderItemsTable() {
     tbody.appendChild(tr);
   }
 
-  // aggiorna alias
   articoliAggiunti = quoteItems;
 }
 
-// FUNZIONE STORICA: chiamata inline dall'HTML
 function aggiornaCampo(event) {
   var input = event.target;
   var index = parseInt(input.getAttribute("data-index"), 10);
@@ -616,9 +612,7 @@ function aggiornaCampo(event) {
     if (val < 0) val = 0;
   }
 
-  // ✅ LOGICA CHIAVE per il margine:
-  // - Se l’utente modifica il campo "margine", salviamo quel valore nella riga.
-  // - Se lo mette a 0, torna dinamico (usa default).
+  // se margine messo a 0 -> torna dinamico (usa default)
   quoteItems[index][field] = val;
 
   renderItemsTable();
@@ -626,7 +620,6 @@ function aggiornaCampo(event) {
   updateRentalBox();
 }
 
-// FUNZIONE STORICA: chiamata inline
 function rimuoviArticolo(index) {
   if (window.track && window.track.remove_item) window.track.remove_item();
   quoteItems.splice(index, 1);
@@ -705,7 +698,6 @@ function showManualItemRow() {
     "<td><input type='number' id='manualPrezzo' placeholder='€' step='0.01'></td>" +
     "<td><input type='number' id='manualSconto1' placeholder='%' value='0' step='0.01' min='0'></td>" +
     "<td><input type='number' id='manualSconto2' placeholder='%' value='0' step='0.01' min='0'></td>" +
-    // ✅ di default il campo margine è 0 (dinamico = usa default cliente)
     "<td><input type='number' id='manualMargine' placeholder='%' value='0' step='0.01' min='0'></td>" +
     "<td><span id='manualNetto'>—</span></td>" +
     "<td><input type='number' id='manualTrasporto' placeholder='€' value='0' step='0.01' min='0'></td>" +
@@ -754,7 +746,6 @@ function calcolaRigaManuale() {
   getEl("manualDiff").textContent = diff.toFixed(2) + "€";
 }
 
-// FUNZIONE STORICA
 function aggiungiArticoloManuale() {
   if (window.track && window.track.add_item_manual) window.track.add_item_manual();
 
@@ -764,7 +755,7 @@ function aggiungiArticoloManuale() {
     prezzoLordo: toNumber(getEl("manualPrezzo").value),
     sconto: toNumber(getEl("manualSconto1").value),
     sconto2: toNumber(getEl("manualSconto2").value),
-    margine: toNumber(getEl("manualMargine").value), // 0 = dinamico default
+    margine: toNumber(getEl("manualMargine").value),
     costoTrasporto: toNumber(getEl("manualTrasporto").value),
     costoInstallazione: toNumber(getEl("manualInstallazione").value),
     quantita: Math.round(clampMin(toNumber(getEl("manualQuantita").value), 1)),
@@ -859,7 +850,6 @@ function openText(content) {
   w.document.close();
 }
 
-// nomi nuovi + alias vecchi
 function sendWhatsAppReport() {
   if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: "standard" });
   shareWhatsApp(generaReportTesto(true));
@@ -897,7 +887,6 @@ function openPrintableQuote(variant) {
   var vatPerc = getEl("ivaPerc") ? toNumber(getEl("ivaPerc").value) : 0;
 
   var title = variant === "cli" ? "Preventivo Cliente Finale" : "Preventivo Rivenditore";
-  var defaultCustomerMargin = getDefaultCustomerMargin();
   var ana = getAnagraficaForVariant(variant);
 
   // servizi visibili SOLO su riv (opzionale)
@@ -921,16 +910,12 @@ function openPrintableQuote(variant) {
     // base unit price (bene + margine)
     var priceUnitBase = 0;
     if (variant === "cli") {
-      // cliente: margine effettivo riga (0 => default cliente)
       priceUnitBase = calcPriceWithMargin(netGood, getEffectiveRowMargin(item));
     } else {
-      // riv: margine effettivo riga (0 => default cliente)
       priceUnitBase = calcPriceWithMargin(netGood, getMargineRiv(item));
     }
 
-    // Netto mostrato:
-    // - cli: (bene+margine) + servizi, ma servizi NON in colonna
-    // - riv: netto bene
+    // Netto mostrato
     var netShownUnit = variant === "cli"
       ? round2(priceUnitBase + servicesUnit)
       : round2(netGood);
@@ -1030,23 +1015,33 @@ function openPrintableQuote(variant) {
   if (showVat) html += "<div><b>IVA (" + vatPerc.toFixed(2) + "%):</b> " + vat.toFixed(2) + "€</div>";
   html += "<div style='font-size:18px;margin-top:6px'><b>TOTALE:</b> " + totalWithVat.toFixed(2) + "€</div>";
   html += "</div>";
-
-  // Box noleggio (opzionale)
+    // Box noleggio (opzionale) — UPDATED (RID variabile + includi RID + giorni/mese + ore/giorno)
   var showRent = getEl("noleggioMostraNelPreventivo") && getEl("noleggioMostraNelPreventivo").checked;
   if (showRent) {
     var durSel = getEl("noleggioDurata") ? getEl("noleggioDurata").value : 24;
-    var outN = calcolaNoleggio(taxable, durSel);
+
+    // usa parametri avanzati se presenti (altrimenti fallback)
+    var cfgP = getNoleggioConfig();
+    var outN = calcolaNoleggio(taxable, durSel, cfgP);
+
     var showDettN = getEl("noleggioMostraDettagli") && getEl("noleggioMostraDettagli").checked;
 
     html += "<div class='box'>";
     html += "<div style='font-weight:700;margin-bottom:6px'>Noleggio Operativo (simulazione)</div>";
     html += "<div>Durata: <b>" + escapeHtml(String(durSel)) + " mesi</b></div>";
-    html += "<div>Rata mensile: <b>" + formatNumberIT(outN.rata) + " €</b></div>";
+
+    html += "<div>Rata mensile: <b>" + formatNumberIT(outN.rataMostrata) + " €</b> ";
+    html += "<span style='color:#444;font-size:12px'>" + (cfgP.includiRID ? "(incl. RID)" : "(RID non incluso)") + "</span>";
+    html += "</div>";
+
     html += "<div>Spese contratto: <b>" + formatNumberIT(outN.spese) + " €</b></div>";
+
     if (showDettN) {
       html += "<div>Costo giornaliero: <b>" + formatNumberIT(outN.giorno) + " €</b> — Costo orario: <b>" + formatNumberIT(outN.ora) + " €</b></div>";
-      html += "<div style='margin-top:6px;color:#444'>Spese incasso RID: 4,00 € al mese</div>";
+      html += "<div style='margin-top:6px;color:#444'>Spese incasso RID: " + formatNumberIT(cfgP.ridMensile) + " € / mese " + (cfgP.includiRID ? "(incluse)" : "(non incluse)") + "</div>";
+      html += "<div style='margin-top:4px;color:#6b7280;font-size:12px'>Parametri: " + cfgP.giorniMese + " gg/mese — " + cfgP.oreGiorno + " ore/giorno</div>";
     }
+
     html += "</div>";
   }
 
@@ -1064,7 +1059,7 @@ function openPrintableQuote(variant) {
 }
 
 // ===============================
-// NOLEGGIO
+// NOLEGGIO (UPDATED)
 // ===============================
 function formatNumberIT(value) {
   value = typeof value === "number" ? value : toNumber(value);
@@ -1073,6 +1068,32 @@ function formatNumberIT(value) {
   } catch (e) {
     return value.toFixed(2).replace(".", ",");
   }
+}
+
+// Legge config noleggio dai campi HTML se esistono, altrimenti usa fallback
+function getNoleggioConfig() {
+  var ridEl = getEl("noleggioRidMensile");
+  var incEl = getEl("noleggioIncludiRID");
+  var gmEl = getEl("noleggioGiorniMese");
+  var ogEl = getEl("noleggioOreGiorno");
+
+  var ridMensile = ridEl ? toNumber(ridEl.value) : 4;
+  if (ridMensile < 0) ridMensile = 0;
+
+  var includiRID = incEl ? !!incEl.checked : true;
+
+  var giorniMese = gmEl ? Math.round(toNumber(gmEl.value)) : 22;
+  if (giorniMese < 1) giorniMese = 1;
+
+  var oreGiorno = ogEl ? toNumber(ogEl.value) : 8;
+  if (oreGiorno < 0.25) oreGiorno = 0.25;
+
+  return {
+    ridMensile: round2(ridMensile),
+    includiRID: includiRID,
+    giorniMese: giorniMese,
+    oreGiorno: oreGiorno
+  };
 }
 
 function calcolaSpeseContratto(importo) {
@@ -1089,7 +1110,7 @@ function calcolaCanoniPerDurate(importo) {
     15000: { 12: 0.081433, 18: 0.058341, 24: 0.045535, 36: 0.032207, 48: 0.025213, 60: 0.021074 },
     25000: { 12: 0.08128, 18: 0.058195, 24: 0.045392, 36: 0.032065, 48: 0.025068, 60: 0.020926 },
     50000: { 12: 0.08077, 18: 0.05771, 24: 0.044915, 36: 0.031592, 48: 0.024588, 60: 0.020437 },
-    100000: { 12: 0.080744, 18: 0.057686, 24: 0.044891, 36: 0.031568, 48: 0.024564, 60: 0.020413 },
+    100000: { 12: 0.080744, 18: 0.057686, 24: 0.044891, 36: 0.031568, 48: 0.024564, 60: 0.020413 }
   };
 
   var keys = [5000, 15000, 25000, 50000, 100000];
@@ -1107,22 +1128,41 @@ function calcolaCanoniPerDurate(importo) {
   return result;
 }
 
-function calcolaNoleggio(importoImponibile, durataMesi) {
+/**
+ * OUTPUT:
+ * - rataBase: canone mensile base
+ * - rataMostrata: rata che mostri (base + RID se includiRID)
+ * - spese: spese contratto
+ * - giorno / ora: calcolati sulla rataMostrata (quella che stai mostrando)
+ * - canoni: tabella canoni base per durate
+ */
+function calcolaNoleggio(importoImponibile, durataMesi, cfg) {
+  cfg = cfg || getNoleggioConfig();
+
   var importo = toNumber(importoImponibile);
   durataMesi = parseInt(durataMesi, 10) || 24;
 
   if (!importo || importo <= 0) {
-    return { rata: 0, spese: 0, giorno: 0, ora: 0, canoni: null };
+    return { rataBase: 0, rataMostrata: 0, spese: 0, giorno: 0, ora: 0, canoni: null };
   }
 
   var canoni = calcolaCanoniPerDurate(importo);
-  var rata = canoni[durataMesi] || 0;
+  var rataBase = canoni[durataMesi] || 0;
   var spese = calcolaSpeseContratto(importo);
 
-  var giorno = rata / 22;
-  var ora = giorno / 8;
+  var rataMostrata = cfg.includiRID ? (rataBase + cfg.ridMensile) : rataBase;
 
-  return { rata: rata, spese: spese, giorno: giorno, ora: ora, canoni: canoni };
+  var giorno = rataMostrata / cfg.giorniMese;
+  var ora = giorno / cfg.oreGiorno;
+
+  return {
+    rataBase: rataBase,
+    rataMostrata: rataMostrata,
+    spese: spese,
+    giorno: giorno,
+    ora: ora,
+    canoni: canoni
+  };
 }
 
 function getTaxableTotalFromItems() {
@@ -1136,7 +1176,6 @@ function getTaxableTotalFromItems() {
 
     var netto = calcNetto(item);
 
-    // ✅ margine dinamico: se riga=0 usa default cliente
     var marginEff = getEffectiveRowMargin(item);
     var priceUnit = calcPriceWithMargin(netto, marginEff);
 
@@ -1157,7 +1196,8 @@ function updateRentalBox() {
   if (!dur) return;
 
   var taxable = getTaxableTotalFromItems();
-  var out = calcolaNoleggio(taxable, dur.value);
+  var cfg = getNoleggioConfig();
+  var out = calcolaNoleggio(taxable, dur.value, cfg);
 
   var elR = getEl("noleggioRata");
   var elS = getEl("noleggioSpese");
@@ -1167,10 +1207,11 @@ function updateRentalBox() {
     if (elR) elR.textContent = "—";
     if (elS) elS.textContent = "—";
     if (elDH) elDH.textContent = "—";
+    renderCanoniTableIfAny(null, cfg); // svuota se presente
     return;
   }
 
-  if (elR) elR.textContent = formatNumberIT(out.rata) + " € / mese";
+  if (elR) elR.textContent = formatNumberIT(out.rataMostrata) + " € / mese" + (cfg.includiRID ? " (incl. RID)" : "");
   if (elS) elS.textContent = formatNumberIT(out.spese) + " €";
 
   var showDett = getEl("noleggioMostraDettagli") && getEl("noleggioMostraDettagli").checked;
@@ -1178,6 +1219,37 @@ function updateRentalBox() {
     elDH.textContent = showDett
       ? formatNumberIT(out.giorno) + " €/giorno — " + formatNumberIT(out.ora) + " €/ora"
       : "—";
+  }
+
+  // tabella canoni opzionale (se hai una tabella in HTML)
+  renderCanoniTableIfAny(out, cfg);
+}
+
+// Se in HTML esiste una tabella con tbody id="noleggioCanoniTbody", la popola.
+// Se non esiste, non fa nulla.
+function renderCanoniTableIfAny(out, cfg) {
+  var chk = getEl("noleggioMostraTabellaCanoni");
+  var mustShow = chk ? !!chk.checked : false;
+
+  var tbody = getEl("noleggioCanoniTbody");
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+
+  if (!mustShow || !out || !out.canoni) return;
+
+  var mesiList = [12, 18, 24, 36, 48, 60];
+  for (var i = 0; i < mesiList.length; i++) {
+    var m = mesiList[i];
+    var base = out.canoni[m] || 0;
+    var mostrata = cfg.includiRID ? (base + cfg.ridMensile) : base;
+
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      "<td style='text-align:center'>" + m + "</td>" +
+      "<td style='text-align:right'>" + formatNumberIT(base) + " €</td>" +
+      "<td style='text-align:right'>" + formatNumberIT(mostrata) + " €</td>";
+    tbody.appendChild(tr);
   }
 }
 
@@ -1194,15 +1266,33 @@ function downloadRentalTXT() {
     return;
   }
 
+  var durEl = getEl("noleggioDurata");
+  var durSel = durEl ? parseInt(durEl.value, 10) : 24;
+
+  var cfg = getNoleggioConfig();
+  var out = calcolaNoleggio(taxable, durSel, cfg);
+
   var canoni = calcolaCanoniPerDurate(taxable);
   var speseContratto = calcolaSpeseContratto(taxable);
 
   var testo = "";
-  testo += "PREVENTIVO DI NOLEGGIO OPERATIVO BCC\n";
-  testo += "--------------------------------------\n\n";
-  testo += "Importo (imponibile): " + formatNumberIT(taxable) + " €\n\n";
+  testo += "PREVENTIVO DI NOLEGGIO OPERATIVO BCC (simulazione)\n";
+  testo += "-----------------------------------------------\n\n";
+  testo += "Importo (imponibile): " + formatNumberIT(taxable) + " €\n";
+  testo += "Durata selezionata: " + durSel + " mesi\n\n";
 
-  testo += "CANONI MENSILI DISPONIBILI:\n";
+  testo += "RID mensile: " + formatNumberIT(cfg.ridMensile) + " € / mese\n";
+  testo += "RID incluso nella rata mostrata: " + (cfg.includiRID ? "SI" : "NO") + "\n";
+  testo += "Parametri: " + cfg.giorniMese + " gg/mese — " + cfg.oreGiorno + " ore/giorno\n\n";
+
+  testo += "RATA MENSILE (base): " + formatNumberIT(out.rataBase) + " €\n";
+  testo += "RATA MENSILE (mostrata): " + formatNumberIT(out.rataMostrata) + " €\n";
+  testo += "Spese di contratto: " + formatNumberIT(speseContratto) + " €\n\n";
+
+  testo += "Costo giornaliero (rata mostrata): " + formatNumberIT(out.giorno) + " €\n";
+  testo += "Costo orario (rata mostrata): " + formatNumberIT(out.ora) + " €\n\n";
+
+  testo += "CANONI MENSILI DISPONIBILI (base):\n";
   testo += "12 mesi: " + formatNumberIT(canoni[12]) + " €\n";
   testo += "18 mesi: " + formatNumberIT(canoni[18]) + " €\n";
   testo += "24 mesi: " + formatNumberIT(canoni[24]) + " €\n";
@@ -1210,11 +1300,15 @@ function downloadRentalTXT() {
   testo += "48 mesi: " + formatNumberIT(canoni[48]) + " €\n";
   testo += "60 mesi: " + formatNumberIT(canoni[60]) + " €\n";
 
-  testo += "\n\nDETTAGLI CONTRATTUALI:\n";
-  testo += "Spese di contratto: " + formatNumberIT(speseContratto) + " €\n";
-  testo += "Spese incasso RID: 4,00 € al mese\n\n";
+  testo += "\nCANONI MENSILI DISPONIBILI (mostrati):\n";
+  testo += "12 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[12] + cfg.ridMensile) : canoni[12]) + " €\n";
+  testo += "18 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[18] + cfg.ridMensile) : canoni[18]) + " €\n";
+  testo += "24 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[24] + cfg.ridMensile) : canoni[24]) + " €\n";
+  testo += "36 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[36] + cfg.ridMensile) : canoni[36]) + " €\n";
+  testo += "48 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[48] + cfg.ridMensile) : canoni[48]) + " €\n";
+  testo += "60 mesi: " + formatNumberIT(cfg.includiRID ? (canoni[60] + cfg.ridMensile) : canoni[60]) + " €\n";
 
-  testo += "BENEFICI FISCALI:\n";
+  testo += "\nBENEFICI FISCALI:\n";
   testo += "- Canone interamente deducibile.\n";
   testo += "- Il bene non entra nei cespiti.\n";
   testo += "- Nessuna incidenza su IRAP.\n\n";
