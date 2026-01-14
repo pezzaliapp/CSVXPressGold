@@ -1,56 +1,102 @@
 // ===============================
-// CSVXpressGold — app.js (FULL)
+// CSVXpressGold — app.js (FULL) — vNext
+// Fix: cambio "Margine Cliente Finale % (default)" aggiorna subito le righe con margine=0
 // Tabella: servizi VISIBILI e modificabili
 // Preventivo Cliente: servizi INCLUSI ma NON mostrati
 // Preventivo Riv: servizi opzionali (toggleMostraServizi)
 // ===============================
 
+// -------------------------------
 // Service Worker
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./service-worker.js')
-    .then(function(reg){ console.log("Service Worker registrato", reg); })
-    .catch(function(err){ console.error("Service Worker non registrato", err); });
+// -------------------------------
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("./service-worker.js")
+    .then(function (reg) {
+      console.log("Service Worker registrato", reg);
+    })
+    .catch(function (err) {
+      console.error("Service Worker non registrato", err);
+    });
 }
 
-// Stato
-var listino = [];
-var articoliAggiunti = [];
-var autoPopolaCosti = true;
+// -------------------------------
+// Stato (nomi leggibili)
+// -------------------------------
+var priceList = [];          // ex: listino
+var quoteItems = [];         // ex: articoliAggiunti
+var autoFillServices = true; // ex: autoPopolaCosti
 
+// Alias retro-compatibilità (se qualche altro file usa i vecchi nomi)
+var listino = priceList;
+var articoliAggiunti = quoteItems;
+var autoPopolaCosti = autoFillServices;
+
+// -------------------------------
 // Utils
-function roundTwo(num) { return Math.round(num * 100) / 100; }
-function n(v){
+// -------------------------------
+function round2(num) {
+  return Math.round(num * 100) / 100;
+}
+
+function toNumber(v) {
   v = parseFloat(String(v == null ? "" : v).replace(",", "."));
   return isNaN(v) ? 0 : v;
 }
-function clampMin(v, min){ return v < min ? min : v; }
 
-// DOM helpers
-function byId(id){ return document.getElementById(id); }
-function createEl(tag){ return document.createElement(tag); }
-function esc(s){
-  s = (s == null) ? "" : String(s);
-  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function clampMin(v, min) {
+  return v < min ? min : v;
 }
-function debounce(fn, ms){
-  var t=null;
-  return function(){
+
+function resetArray(arr) {
+  arr.length = 0;
+}
+
+// -------------------------------
+// DOM helpers
+// -------------------------------
+function getEl(id) {
+  return document.getElementById(id);
+}
+
+function el(tag) {
+  return document.createElement(tag);
+}
+
+function escapeHtml(s) {
+  s = s == null ? "" : String(s);
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function debounce(fn, ms) {
+  var t = null;
+  return function () {
     clearTimeout(t);
     var args = arguments;
-    t=setTimeout(function(){ fn.apply(null,args); }, ms);
+    t = setTimeout(function () {
+      fn.apply(null, args);
+    }, ms);
   };
 }
 
-// ===============================
-// ANAGRAFICA (opzionale) — usa i campi presenti in index.html
-// ===============================
+// -------------------------------
+// ANAGRAFICA (opzionale)
+// -------------------------------
 var ANAG_KEY = "csvxpressgold_anagrafica_v2";
 
-function hasAnagraficaUI(){
-  return !!byId("anagraficaAzienda");
+function hasAnagraficaUI() {
+  return !!getEl("anagraficaAzienda");
 }
-function getAnagraficaFromUI(){
-  function val(id){ var el=byId(id); return el ? (el.value||"").trim() : ""; }
+
+function getAnagraficaFromUI() {
+  function val(id) {
+    var node = getEl(id);
+    return node ? (node.value || "").trim() : "";
+  }
   return {
     tipo: val("anagraficaTipo") || "rivenditore",
     azienda: val("anagraficaAzienda"),
@@ -60,15 +106,16 @@ function getAnagraficaFromUI(){
     indirizzo: val("anagraficaIndirizzo"),
     piva: val("anagraficaPiva"),
     cf: val("anagraficaCf"),
-    note: val("anagraficaNote")
+    note: val("anagraficaNote"),
   };
 }
-function setAnagraficaToUI(data, clear){
+
+function setAnagraficaToUI(data, clear) {
   data = data || {};
-  function set(id, v){
-    var el = byId(id);
-    if (!el) return;
-    el.value = clear ? "" : (v || "");
+  function set(id, v) {
+    var node = getEl(id);
+    if (!node) return;
+    node.value = clear ? "" : v || "";
   }
   set("anagraficaTipo", data.tipo || "rivenditore");
   set("anagraficaAzienda", data.azienda);
@@ -80,179 +127,213 @@ function setAnagraficaToUI(data, clear){
   set("anagraficaCf", data.cf);
   set("anagraficaNote", data.note);
 }
-function saveAnagrafica(){
+
+function saveAnagrafica() {
   if (!hasAnagraficaUI()) return;
-  try{
+  try {
     localStorage.setItem(ANAG_KEY, JSON.stringify(getAnagraficaFromUI()));
-  }catch(e){}
+  } catch (e) {}
 }
-function loadAnagrafica(clear){
+
+function loadAnagrafica(clear) {
   if (!hasAnagraficaUI()) return;
-  try{
-    if (clear){ setAnagraficaToUI(null, true); return; }
+  try {
+    if (clear) {
+      setAnagraficaToUI(null, true);
+      return;
+    }
     var raw = localStorage.getItem(ANAG_KEY);
     if (!raw) return;
     setAnagraficaToUI(JSON.parse(raw), false);
-  }catch(e){}
+  } catch (e) {}
 }
-function bindAnagraficaAutosave(){
+
+function bindAnagraficaAutosave() {
   if (!hasAnagraficaUI()) return;
 
   loadAnagrafica(false);
 
   var ids = [
-    "anagraficaTipo","anagraficaAzienda","anagraficaReferente","anagraficaEmail",
-    "anagraficaCell","anagraficaIndirizzo","anagraficaPiva","anagraficaCf","anagraficaNote"
+    "anagraficaTipo",
+    "anagraficaAzienda",
+    "anagraficaReferente",
+    "anagraficaEmail",
+    "anagraficaCell",
+    "anagraficaIndirizzo",
+    "anagraficaPiva",
+    "anagraficaCf",
+    "anagraficaNote",
   ];
+
   var saver = debounce(saveAnagrafica, 300);
-  for (var i=0;i<ids.length;i++){
-    (function(id){
-      var el = byId(id);
-      if (!el) return;
-      el.addEventListener("input", saver, false);
-      el.addEventListener("change", saver, false);
+
+  for (var i = 0; i < ids.length; i++) {
+    (function (id) {
+      var node = getEl(id);
+      if (!node) return;
+      node.addEventListener("input", saver, false);
+      node.addEventListener("change", saver, false);
     })(ids[i]);
   }
 }
-function getAnagraficaForVariant(variant){
+
+function getAnagraficaForVariant(variant) {
   if (!hasAnagraficaUI()) return {};
   var a = getAnagraficaFromUI();
-  a._label = (a.tipo === "cliente") ? "Cliente finale" : "Rivenditore";
+  a._label = a.tipo === "cliente" ? "Cliente finale" : "Rivenditore";
   a._variant = variant;
   return a;
 }
-
 // ===============================
 // Bootstrap
 // ===============================
 document.addEventListener("DOMContentLoaded", function () {
   // badge versione
   try {
-    var VER = document.documentElement.getAttribute('data-ver') || 'dev';
-    var badge = byId("verBadge");
+    var VER = document.documentElement.getAttribute("data-ver") || "dev";
+    var badge = getEl("verBadge");
     if (badge) badge.textContent = "ver " + VER;
-  } catch(e) {}
+  } catch (e) {}
 
   bindAnagraficaAutosave();
 
-  var csvInput = byId("csvFileInput");
+  var csvInput = getEl("csvFileInput");
   if (csvInput) csvInput.addEventListener("change", handleCSVUpload, false);
 
-  var search = byId("searchListino");
-  if (search) search.addEventListener("input", aggiornaListinoSelect, false);
+  var search = getEl("searchListino");
+  if (search) search.addEventListener("input", refreshPriceListSelect, false);
 
-  var btnAdd = byId("btnAddFromListino");
-  if (btnAdd) btnAdd.addEventListener("click", aggiungiArticoloDaListino, false);
+  var btnAdd = getEl("btnAddFromListino");
+  if (btnAdd) btnAdd.addEventListener("click", addItemFromPriceList, false);
 
-  var btnManual = byId("btnManual");
-  if (btnManual) btnManual.addEventListener("click", mostraFormArticoloManuale, false);
+  var btnManual = getEl("btnManual");
+  if (btnManual) btnManual.addEventListener("click", showManualItemRow, false);
 
-  var toggleCosti = byId("toggleCosti");
-  if (toggleCosti){
-    autoPopolaCosti = !!toggleCosti.checked;
-    toggleCosti.addEventListener("change", function(){
-      autoPopolaCosti = !!toggleCosti.checked;
+  // Toggle auto servizi
+  var toggleCosti = getEl("toggleCosti");
+  if (toggleCosti) {
+    autoFillServices = !!toggleCosti.checked;
+    autoPopolaCosti = autoFillServices;
 
-      // Se OFF -> azzera servizi su tutte le righe
-      // Se ON  -> ripristina servizi da listino (se trovati), altrimenti mantiene il valore attuale
-      for (var i=0;i<articoliAggiunti.length;i++){
-        var a = articoliAggiunti[i];
-        if (!autoPopolaCosti){
-          a.costoTrasporto = 0;
-          a.costoInstallazione = 0;
-        } else {
-          var base = trovaInListino(a.codice);
-          if (base){
-            a.costoTrasporto = n(base.costoTrasporto);
-            a.costoInstallazione = n(base.costoInstallazione);
+    toggleCosti.addEventListener(
+      "change",
+      function () {
+        autoFillServices = !!toggleCosti.checked;
+        autoPopolaCosti = autoFillServices;
+
+        // OFF: azzera servizi su tutte le righe
+        // ON : ripristina servizi dal listino (se trovati)
+        for (var i = 0; i < quoteItems.length; i++) {
+          var item = quoteItems[i];
+          if (!autoFillServices) {
+            item.costoTrasporto = 0;
+            item.costoInstallazione = 0;
+          } else {
+            var base = findInPriceList(item.codice);
+            if (base) {
+              item.costoTrasporto = toNumber(base.costoTrasporto);
+              item.costoInstallazione = toNumber(base.costoInstallazione);
+            }
           }
         }
-      }
 
-      aggiornaTabellaArticoli();
-      aggiornaTotaliGenerali();
-      aggiornaBoxNoleggio();
-    }, false);
+        renderItemsTable();
+        updateTotals();
+        updateRentalBox();
+      },
+      false
+    );
   }
 
   // Report
-  var btnWA = byId("btnWA");
-  if (btnWA) btnWA.addEventListener("click", inviaReportWhatsApp, false);
+  var btnWA = getEl("btnWA");
+  if (btnWA) btnWA.addEventListener("click", sendWhatsAppReport, false);
 
-  var btnTXT = byId("btnTXT");
-  if (btnTXT) btnTXT.addEventListener("click", generaTXTReport, false);
+  var btnTXT = getEl("btnTXT");
+  if (btnTXT) btnTXT.addEventListener("click", exportTxtReport, false);
 
-  var btnWAnm = byId("btnWASenzaMargine");
-  if (btnWAnm) btnWAnm.addEventListener("click", inviaReportWhatsAppSenzaMargine, false);
+  var btnWAnm = getEl("btnWASenzaMargine");
+  if (btnWAnm) btnWAnm.addEventListener("click", sendWhatsAppReportNoMargin, false);
 
-  var btnTXTnm = byId("btnTXTSenzaMargine");
-  if (btnTXTnm) btnTXTnm.addEventListener("click", generaTXTReportSenzaMargine, false);
+  var btnTXTnm = getEl("btnTXTSenzaMargine");
+  if (btnTXTnm) btnTXTnm.addEventListener("click", exportTxtReportNoMargin, false);
 
   // Preventivi
-  var btnPrevR = byId("btnPrevRiv");
-  if (btnPrevR) btnPrevR.addEventListener("click", function(){ apriPreventivo('riv'); }, false);
+  var btnPrevR = getEl("btnPrevRiv");
+  if (btnPrevR) btnPrevR.addEventListener("click", function () { openPrintableQuote("riv"); }, false);
 
-  var btnPrevC = byId("btnPrevCli");
-  if (btnPrevC) btnPrevC.addEventListener("click", function(){ apriPreventivo('cli'); }, false);
+  var btnPrevC = getEl("btnPrevCli");
+  if (btnPrevC) btnPrevC.addEventListener("click", function () { openPrintableQuote("cli"); }, false);
 
   // Noleggio
-  var selDur = byId("noleggioDurata");
-  if (selDur) selDur.addEventListener("change", aggiornaBoxNoleggio, false);
+  var selDur = getEl("noleggioDurata");
+  if (selDur) selDur.addEventListener("change", updateRentalBox, false);
 
-  var btnNT = byId("btnNoleggioTXT");
-  if (btnNT) btnNT.addEventListener("click", scaricaNoleggioTXT, false);
+  var btnNT = getEl("btnNoleggioTXT");
+  if (btnNT) btnNT.addEventListener("click", downloadRentalTXT, false);
 
-  var mCli = byId("margineCliDefault");
-if (mCli) mCli.addEventListener("input", function(){
-  aggiornaTabellaArticoli();      // per aggiornare il valore visibile in colonna Margine%
-  aggiornaTotaliGenerali();
-  aggiornaBoxNoleggio();
-}, false);
-
-  var mRiv = byId("margineRivDefault");
-  if (mRiv) mRiv.addEventListener("input", aggiornaBoxNoleggio, false);
-
-  var radios = document.getElementsByName("scontoClienteMode");
-  for (var r=0;r<radios.length;r++){
-    radios[r].addEventListener("change", aggiornaBoxNoleggio, false);
+  // ✅ Fix: se cambio default cliente (es. 25), le righe con margine=0 si aggiornano subito
+  var defaultCustomerMarginInput = getEl("margineCliDefault");
+  if (defaultCustomerMarginInput) {
+    defaultCustomerMarginInput.addEventListener(
+      "input",
+      function () {
+        renderItemsTable();
+        updateTotals();
+        updateRentalBox();
+      },
+      false
+    );
   }
 
-  aggiornaTabellaArticoli();
-  aggiornaTotaliGenerali();
-  aggiornaBoxNoleggio();
+  // (se ti serve ancora per altri punti)
+  var defaultResellerMarginInput = getEl("margineRivDefault");
+  if (defaultResellerMarginInput) {
+    defaultResellerMarginInput.addEventListener("input", updateRentalBox, false);
+  }
+
+  var radios = document.getElementsByName("scontoClienteMode");
+  for (var r = 0; r < radios.length; r++) {
+    radios[r].addEventListener("change", updateRentalBox, false);
+  }
+
+  renderItemsTable();
+  updateTotals();
+  updateRentalBox();
 });
 
 // ===============================
 // Modalità Sconto Cliente Finale
 // ===============================
-function getScontoClienteMode(){
+function getCustomerDiscountMode() {
   var nodes = document.getElementsByName("scontoClienteMode");
-  for (var i=0;i<nodes.length;i++){
+  for (var i = 0; i < nodes.length; i++) {
     if (nodes[i].checked) return nodes[i].value;
   }
   return "bene";
 }
+
 // calcola sconto% inverso
-function calcScontoClientePerc(prezzoLordo, prezzoClienteUnit, serviziUnit){
-  var mode = getScontoClienteMode();
-  prezzoLordo = n(prezzoLordo);
-  prezzoClienteUnit = n(prezzoClienteUnit);
-  serviziUnit = n(serviziUnit);
+function calcCustomerDiscountPercent(prezzoLordo, prezzoClienteUnit, serviziUnit) {
+  var mode = getCustomerDiscountMode();
+  prezzoLordo = toNumber(prezzoLordo);
+  prezzoClienteUnit = toNumber(prezzoClienteUnit);
+  serviziUnit = toNumber(serviziUnit);
 
   var base = prezzoLordo;
   var fin = prezzoClienteUnit;
 
-  if (mode === "totale"){
+  if (mode === "totale") {
     base = prezzoLordo + serviziUnit;
     fin = prezzoClienteUnit + serviziUnit;
   }
 
   if (!base || base <= 0) return 0;
 
-  var s = (1 - (fin / base)) * 100;
+  var s = (1 - fin / base) * 100;
   if (s < 0) s = 0;
   if (s > 99.99) s = 99.99;
-  return roundTwo(s);
+  return round2(s);
 }
 
 // ===============================
@@ -262,220 +343,255 @@ function handleCSVUpload(event) {
   var file = event.target.files[0];
   if (!file) return;
 
-  if (window.track && window.track.csv_upload_start) window.track.csv_upload_start({ method: 'file_input' });
-  if (window.track && window.track.csv_upload_ok) window.track.csv_upload_ok({ method: 'file_input', file: file });
+  if (window.track && window.track.csv_upload_start) window.track.csv_upload_start({ method: "file_input" });
+  if (window.track && window.track.csv_upload_ok) window.track.csv_upload_ok({ method: "file_input", file: file });
 
   var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
 
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
-    complete: function(results) {
+    complete: function (results) {
       var ms = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
 
       if (!results.data || !results.data.length) {
-        var errEl = byId("csvError");
+        var errEl = getEl("csvError");
         if (errEl) errEl.style.display = "block";
-        if (window.track && window.track.csv_parse_error) window.track.csv_parse_error({ code: 'empty_or_no_rows', ms: ms });
+        if (window.track && window.track.csv_parse_error) window.track.csv_parse_error({ code: "empty_or_no_rows", ms: ms });
         return;
       }
 
-      listino = [];
-      for (var i=0;i<results.data.length;i++){
+      resetArray(priceList);
+
+      for (var i = 0; i < results.data.length; i++) {
         var row = results.data[i] || {};
-        listino.push({
+        priceList.push({
           codice: (row["Codice"] || "").trim(),
           descrizione: (row["Descrizione"] || "").trim(),
-          prezzoLordo: n(row["PrezzoLordo"] || "0"),
+          prezzoLordo: toNumber(row["PrezzoLordo"] || "0"),
           sconto: 0,
           sconto2: 0,
-          margine: 0,
-          costoTrasporto: n(row["CostoTrasporto"] || "0"),
-          costoInstallazione: n(row["CostoInstallazione"] || "0"),
+          margine: 0, // 0 = usa default cliente
+          costoTrasporto: toNumber(row["CostoTrasporto"] || "0"),
+          costoInstallazione: toNumber(row["CostoInstallazione"] || "0"),
           quantita: 1,
-          venduto: 0
+          venduto: 0,
         });
       }
 
-      var rows = listino.length;
+      // aggiorna alias
+      listino = priceList;
+
+      var rows = priceList.length;
       var cols = (results.meta && results.meta.fields && results.meta.fields.length) ? results.meta.fields.length : undefined;
       if (window.track && window.track.csv_parse_ok) window.track.csv_parse_ok({ rows: rows, cols: cols, ms: ms });
 
-      var errEl2 = byId("csvError");
+      var errEl2 = getEl("csvError");
       if (errEl2) errEl2.style.display = "none";
 
-      aggiornaListinoSelect();
+      refreshPriceListSelect();
     },
-    error: function(err) {
+    error: function (err) {
       var ms2 = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - t0);
       console.error("Errore CSV:", err);
-      var errEl3 = byId("csvError");
+      var errEl3 = getEl("csvError");
       if (errEl3) errEl3.style.display = "block";
-      if (window.track && window.track.csv_parse_error) window.track.csv_parse_error({ code: 'papaparse_error', ms: ms2 });
-    }
+      if (window.track && window.track.csv_parse_error) window.track.csv_parse_error({ code: "papaparse_error", ms: ms2 });
+    },
   });
 }
 
 // ===============================
 // Listino UI
 // ===============================
-function aggiornaListinoSelect() {
-  var select = byId("listinoSelect");
+function refreshPriceListSelect() {
+  var select = getEl("listinoSelect");
   if (!select) return;
-  var searchTerm = ((byId("searchListino") && byId("searchListino").value) || "").toLowerCase();
+
+  var searchTerm = ((getEl("searchListino") && getEl("searchListino").value) || "").toLowerCase();
   select.innerHTML = "";
 
-  for (var i=0;i<listino.length;i++){
-    var item = listino[i];
+  for (var i = 0; i < priceList.length; i++) {
+    var item = priceList[i];
     var hit =
       (item.codice || "").toLowerCase().indexOf(searchTerm) > -1 ||
       (item.descrizione || "").toLowerCase().indexOf(searchTerm) > -1;
 
-    if (hit){
-      var option = createEl("option");
+    if (hit) {
+      var option = el("option");
       option.value = item.codice;
-      option.textContent = item.codice + " - " + item.descrizione + " - €" + n(item.prezzoLordo).toFixed(2);
+      option.textContent = item.codice + " - " + item.descrizione + " - €" + toNumber(item.prezzoLordo).toFixed(2);
       select.appendChild(option);
     }
   }
 }
 
-function trovaInListino(codice){
-  for (var i=0;i<listino.length;i++){
-    if (listino[i].codice === codice) return listino[i];
+function findInPriceList(codice) {
+  for (var i = 0; i < priceList.length; i++) {
+    if (priceList[i].codice === codice) return priceList[i];
   }
   return null;
 }
 
-function aggiungiArticoloDaListino() {
+function addItemFromPriceList() {
   if (window.track && window.track.add_item_listino) window.track.add_item_listino();
 
-  var select = byId("listinoSelect");
+  var select = getEl("listinoSelect");
   if (!select || !select.value) return;
 
-  var articolo = trovaInListino(select.value);
-  if (!articolo) { alert("Errore: articolo non trovato nel listino."); return; }
-
-  var nuovo = {};
-  for (var k in articolo) if (articolo.hasOwnProperty(k)) nuovo[k] = articolo[k];
-
-  if (!autoPopolaCosti){
-    nuovo.costoTrasporto = 0;
-    nuovo.costoInstallazione = 0;
+  var baseItem = findInPriceList(select.value);
+  if (!baseItem) {
+    alert("Errore: articolo non trovato nel listino.");
+    return;
   }
 
-  articoliAggiunti.push(nuovo);
-  aggiornaTabellaArticoli();
-  aggiornaTotaliGenerali();
-  aggiornaBoxNoleggio();
-}
+  // clone
+  var newItem = {};
+  for (var k in baseItem) if (baseItem.hasOwnProperty(k)) newItem[k] = baseItem[k];
 
+  if (!autoFillServices) {
+    newItem.costoTrasporto = 0;
+    newItem.costoInstallazione = 0;
+  }
+
+  quoteItems.push(newItem);
+
+  // aggiorna alias
+  articoliAggiunti = quoteItems;
+
+  renderItemsTable();
+  updateTotals();
+  updateRentalBox();
+}
 // ===============================
 // Calcoli (Margine)
 // ===============================
-function calcNetto(a){
-  var s1 = n(a.sconto);
-  var s2 = n(a.sconto2);
-  var lordo = n(a.prezzoLordo);
-  return roundTwo(lordo * (1 - s1/100) * (1 - s2/100));
-}
-function calcPrezzoConMargine(netto, marginePerc){
-  marginePerc = n(marginePerc);
-  if (marginePerc <= 0) return roundTwo(netto);
-  if (marginePerc >= 99.99) marginePerc = 99.99;
-  return roundTwo(netto / (1 - marginePerc/100));
-}
-function getMargineDefaultCliente(){
-  var def = byId("margineCliDefault");
-  return def ? n(def.value) : 0;
+function calcNetto(item) {
+  var s1 = toNumber(item.sconto);
+  var s2 = toNumber(item.sconto2);
+  var lordo = toNumber(item.prezzoLordo);
+  return round2(lordo * (1 - s1 / 100) * (1 - s2 / 100));
 }
 
-// Mantengo il nome getMargineRiv per non cambiare tutti i punti dove viene usata.
-// Ma ORA: il default è quello del Cliente Finale.
-function getMargineRiv(a){
-  var m = n(a.margine);
-  if (m > 0) return m;
-  return getMargineDefaultCliente();
+function calcPriceWithMargin(netto, marginePerc) {
+  marginePerc = toNumber(marginePerc);
+  if (marginePerc <= 0) return round2(netto);
+  if (marginePerc >= 99.99) marginePerc = 99.99;
+  return round2(netto / (1 - marginePerc / 100));
 }
-function getMargineCli(){
-  var def = byId("margineCliDefault");
-  return def ? n(def.value) : 0;
+
+function getDefaultCustomerMargin() {
+  var input = getEl("margineCliDefault");
+  return input ? toNumber(input.value) : 0;
 }
+
+// margine effettivo riga: se >0 usa quello, altrimenti usa default cliente
+function getEffectiveRowMargin(item) {
+  var m = toNumber(item.margine);
+  return m > 0 ? m : getDefaultCustomerMargin();
+}
+
+// Mantengo nome storico (se richiamato altrove)
+// Ora: riv usa margine riga (se >0) altrimenti default cliente
+function getMargineRiv(item) {
+  return getEffectiveRowMargin(item);
+}
+function getMargineCli() {
+  return getDefaultCustomerMargin();
+}
+
 // ===============================
 // Tabella articoli
 // ===============================
-function tdInp(index, field, value, opts){
+function tdInputNumber(index, field, value, opts) {
   opts = opts || {};
-  var v = (typeof value === "number") ? value : n(value);
+  var v = typeof value === "number" ? value : toNumber(value);
 
-  var minAttr  = (opts.min != null)  ? (" min='" + String(opts.min) + "'") : "";
-  var stepAttr = (opts.step != null) ? (" step='" + String(opts.step) + "'") : " step='0.01'";
+  var minAttr = opts.min != null ? " min='" + String(opts.min) + "'" : "";
+  var stepAttr = opts.step != null ? " step='" + String(opts.step) + "'" : " step='0.01'";
 
-  return "<td><input type='number' value='" + v + "' data-index='" + index + "' data-field='" + field + "'" +
-         minAttr + stepAttr + " oninput='aggiornaCampo(event)'></td>";
+  return (
+    "<td><input type='number' value='" +
+    v +
+    "' data-index='" +
+    index +
+    "' data-field='" +
+    field +
+    "'" +
+    minAttr +
+    stepAttr +
+    " oninput='aggiornaCampo(event)'></td>"
+  );
 }
 
+// FUNZIONE STORICA: non rinomino perché è richiamata inline dall'HTML
 function aggiornaTabellaArticoli() {
+  renderItemsTable();
+}
+
+function renderItemsTable() {
   var tbody = document.querySelector("#articoli-table tbody");
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  for (var i=0;i<articoliAggiunti.length;i++){
-    var a = articoliAggiunti[i];
+  for (var i = 0; i < quoteItems.length; i++) {
+    var item = quoteItems[i];
 
-    var netto = calcNetto(a);
-    var prezzoRiv = calcPrezzoConMargine(netto, getMargineRiv(a));
+    var netto = calcNetto(item);
 
-    var q = clampMin(n(a.quantita), 1);
-    q = Math.round(q);
+    var qty = clampMin(toNumber(item.quantita), 1);
+    qty = Math.round(qty);
 
-    // servizi unitari (VISIBILI)
-    var trp  = n(a.costoTrasporto);
-    var inst = n(a.costoInstallazione);
-    var serv = trp + inst;
+    // servizi unitari (visibili)
+    var shipping = toNumber(item.costoTrasporto);
+    var install = toNumber(item.costoInstallazione);
+    var servicesUnit = shipping + install;
 
-    var totRiv = roundTwo((prezzoRiv + serv) * q);
+    // ✅ prezzo riv con margine effettivo (default dinamico se margine=0)
+    var marginEff = getEffectiveRowMargin(item);
+    var priceWithMargin = calcPriceWithMargin(netto, marginEff);
 
-    var venduto = n(a.venduto);
-    var diff = roundTwo(venduto - totRiv);
+    var totalRowRiv = round2((priceWithMargin + servicesUnit) * qty);
 
-    var tr = createEl("tr");
+    var sold = toNumber(item.venduto);
+    var diff = round2(sold - totalRowRiv);
+
+    // ✅ valore mostrato nella cella margine:
+    // se margine riga=0 -> mostra il default corrente (es. 25)
+    var marginDisplayed = marginEff;
+
+    var tr = el("tr");
     tr.innerHTML =
-      // ordine IDENTICO al THEAD in index.html
-      "<td>" + esc(a.codice) + "</td>" +
-      "<td>" + esc(a.descrizione) + "</td>" +
-      "<td>" + n(a.prezzoLordo).toFixed(2) + "€</td>" +
-      tdInp(i,"sconto", n(a.sconto), { min: 0, step: 0.01 }) +
-      tdInp(i,"sconto2", n(a.sconto2), { min: 0, step: 0.01 }) +
-     tdInp(i,"margine", (n(a.margine) > 0 ? n(a.margine) : getMargineDefaultCliente()), { min: 0, step: 0.01 }) +
+      "<td>" + escapeHtml(item.codice) + "</td>" +
+      "<td>" + escapeHtml(item.descrizione) + "</td>" +
+      "<td>" + toNumber(item.prezzoLordo).toFixed(2) + "€</td>" +
+      tdInputNumber(i, "sconto", toNumber(item.sconto), { min: 0, step: 0.01 }) +
+      tdInputNumber(i, "sconto2", toNumber(item.sconto2), { min: 0, step: 0.01 }) +
+      tdInputNumber(i, "margine", marginDisplayed, { min: 0, step: 0.01 }) +
       "<td>" + netto.toFixed(2) + "€</td>" +
-      tdInp(i,"costoTrasporto", trp, { min: 0, step: 0.01 }) +
-      tdInp(i,"costoInstallazione", inst, { min: 0, step: 0.01 }) +
-      tdInp(i,"quantita", q, { min: 1, step: 1 }) +
-      "<td>" + totRiv.toFixed(2) + "€</td>" +
-      tdInp(i,"venduto", venduto, { min: 0, step: 0.01 }) +
+      tdInputNumber(i, "costoTrasporto", shipping, { min: 0, step: 0.01 }) +
+      tdInputNumber(i, "costoInstallazione", install, { min: 0, step: 0.01 }) +
+      tdInputNumber(i, "quantita", qty, { min: 1, step: 1 }) +
+      "<td>" + totalRowRiv.toFixed(2) + "€</td>" +
+      tdInputNumber(i, "venduto", sold, { min: 0, step: 0.01 }) +
       "<td>" + diff.toFixed(2) + "€</td>" +
       "<td><button type='button' onclick='rimuoviArticolo(" + i + ")'>Rimuovi</button></td>";
 
     tbody.appendChild(tr);
+  }
 
-// ✅ Se la riga non ha margine impostato (0/vuoto), imposta il default (margine cliente)
-// così: 1) lo vedi in tabella  2) i calcoli usano davvero quel valore
-try {
-  if (n(a.margine) <= 0) {
-    a.margine = getMargineCli();
-  }
-  var inpM = tr.querySelector("input[data-field='margine'][data-index='" + i + "']");
-  if (inpM) inpM.value = n(a.margine);
-} catch(e) {}
-  }
+  // aggiorna alias
+  articoliAggiunti = quoteItems;
 }
 
+// FUNZIONE STORICA: chiamata inline dall'HTML
 function aggiornaCampo(event) {
   var input = event.target;
-  var index = parseInt(input.getAttribute("data-index"),10);
+  var index = parseInt(input.getAttribute("data-index"), 10);
   var field = input.getAttribute("data-field");
-  var val = n(input.value);
+  var val = toNumber(input.value);
+
+  if (!quoteItems[index]) return;
 
   if (field === "quantita") {
     if (val < 1) val = 1;
@@ -484,83 +600,96 @@ function aggiornaCampo(event) {
     if (val < 0) val = 0;
   }
 
-  if (!articoliAggiunti[index]) return;
-  articoliAggiunti[index][field] = val;
+  // ✅ LOGICA CHIAVE per il margine:
+  // - Se l’utente modifica il campo "margine", salviamo quel valore nella riga.
+  // - Se lo mette a 0, torna dinamico (usa default).
+  quoteItems[index][field] = val;
 
-  aggiornaTabellaArticoli();
-  aggiornaTotaliGenerali();
-  aggiornaBoxNoleggio();
+  renderItemsTable();
+  updateTotals();
+  updateRentalBox();
 }
 
+// FUNZIONE STORICA: chiamata inline
 function rimuoviArticolo(index) {
   if (window.track && window.track.remove_item) window.track.remove_item();
-  articoliAggiunti.splice(index, 1);
-  aggiornaTabellaArticoli();
-  aggiornaTotaliGenerali();
-  aggiornaBoxNoleggio();
+  quoteItems.splice(index, 1);
+
+  renderItemsTable();
+  updateTotals();
+  updateRentalBox();
 }
 
 // ===============================
 // Totali
 // ===============================
 function aggiornaTotaliGenerali() {
-  var totNetto = 0;
-  var totRiv = 0;
-  var totVend = 0;
-  var totDiff = 0;
+  updateTotals();
+}
 
-  for (var i=0;i<articoliAggiunti.length;i++){
-    var a = articoliAggiunti[i];
-    var q = clampMin(n(a.quantita), 1);
-    q = Math.round(q);
+function updateTotals() {
+  var totalNet = 0;
+  var totalRiv = 0;
+  var totalSold = 0;
+  var totalDiff = 0;
 
-    var netto = calcNetto(a);
-    var prezzoRiv = calcPrezzoConMargine(netto, getMargineRiv(a));
+  for (var i = 0; i < quoteItems.length; i++) {
+    var item = quoteItems[i];
 
-    var trp  = n(a.costoTrasporto);
-    var inst = n(a.costoInstallazione);
-    var serv = trp + inst;
+    var qty = clampMin(toNumber(item.quantita), 1);
+    qty = Math.round(qty);
 
-    var totRigaRiv = roundTwo((prezzoRiv + serv) * q);
+    var netto = calcNetto(item);
+    var marginEff = getEffectiveRowMargin(item);
+    var priceWithMargin = calcPriceWithMargin(netto, marginEff);
 
-    var venduto = n(a.venduto);
-    var diff = roundTwo(venduto - totRigaRiv);
+    var shipping = toNumber(item.costoTrasporto);
+    var install = toNumber(item.costoInstallazione);
+    var servicesUnit = shipping + install;
 
-    totNetto += (netto * q);
-    totRiv += totRigaRiv;
-    totVend += venduto;
-    totDiff += diff;
+    var rowRiv = round2((priceWithMargin + servicesUnit) * qty);
+
+    var sold = toNumber(item.venduto);
+    var diff = round2(sold - rowRiv);
+
+    totalNet += netto * qty;
+    totalRiv += rowRiv;
+    totalSold += sold;
+    totalDiff += diff;
   }
 
-  var holder = byId("totaleGenerale");
+  var holder = getEl("totaleGenerale");
   if (!holder) return;
 
-  var html = "";
-  html += "<strong>Totale Netto (dopo sconti):</strong> " + roundTwo(totNetto).toFixed(2) + "€<br>";
-  html += "<strong>Totale Preventivo Rivenditore (margine + servizi):</strong> " + roundTwo(totRiv).toFixed(2) + "€<br>";
-  html += "<strong>Totale Venduto (se compilato):</strong> " + roundTwo(totVend).toFixed(2) + "€<br>";
-  html += "<strong>Totale Differenza:</strong> " + roundTwo(totDiff).toFixed(2) + "€";
-  holder.innerHTML = html;
+  holder.innerHTML =
+    "<strong>Totale Netto (dopo sconti):</strong> " + round2(totalNet).toFixed(2) + "€<br>" +
+    "<strong>Totale Preventivo Rivenditore (margine + servizi):</strong> " + round2(totalRiv).toFixed(2) + "€<br>" +
+    "<strong>Totale Venduto (se compilato):</strong> " + round2(totalSold).toFixed(2) + "€<br>" +
+    "<strong>Totale Differenza:</strong> " + round2(totalDiff).toFixed(2) + "€";
 }
 
 // ===============================
 // Aggiunta manuale
 // ===============================
 function mostraFormArticoloManuale() {
+  showManualItemRow();
+}
+
+function showManualItemRow() {
   var tbody = document.querySelector("#articoli-table tbody");
   if (!tbody) return;
-  if (byId("manual-input-row")) return;
+  if (getEl("manual-input-row")) return;
 
-  var tr = createEl("tr");
+  var tr = el("tr");
   tr.id = "manual-input-row";
 
-  // ordine IDENTICO al THEAD in index.html
   tr.innerHTML =
     "<td><input type='text' id='manualCodice' placeholder='Codice'></td>" +
     "<td><input type='text' id='manualDescrizione' placeholder='Descrizione'></td>" +
     "<td><input type='number' id='manualPrezzo' placeholder='€' step='0.01'></td>" +
     "<td><input type='number' id='manualSconto1' placeholder='%' value='0' step='0.01' min='0'></td>" +
     "<td><input type='number' id='manualSconto2' placeholder='%' value='0' step='0.01' min='0'></td>" +
+    // ✅ di default il campo margine è 0 (dinamico = usa default cliente)
     "<td><input type='number' id='manualMargine' placeholder='%' value='0' step='0.01' min='0'></td>" +
     "<td><span id='manualNetto'>—</span></td>" +
     "<td><input type='number' id='manualTrasporto' placeholder='€' value='0' step='0.01' min='0'></td>" +
@@ -570,82 +699,85 @@ function mostraFormArticoloManuale() {
     "<td><input type='number' id='manualVenduto' placeholder='€' value='0' step='0.01' min='0'></td>" +
     "<td><span id='manualDiff'>—</span></td>" +
     "<td><button type='button' onclick='aggiungiArticoloManuale()'>✅</button> " +
-      "<button type='button' onclick='annullaArticoloManuale()'>❌</button></td>";
+    "<button type='button' onclick='annullaArticoloManuale()'>❌</button></td>";
 
   tbody.appendChild(tr);
 
-  var ids = ["manualPrezzo","manualSconto1","manualSconto2","manualMargine","manualTrasporto","manualInstallazione","manualQuantita","manualVenduto"];
-  for (var i=0;i<ids.length;i++){
-    byId(ids[i]).addEventListener("input", calcolaRigaManuale, false);
+  var ids = ["manualPrezzo", "manualSconto1", "manualSconto2", "manualMargine", "manualTrasporto", "manualInstallazione", "manualQuantita", "manualVenduto"];
+  for (var i = 0; i < ids.length; i++) {
+    getEl(ids[i]).addEventListener("input", calcolaRigaManuale, false);
   }
 
   calcolaRigaManuale();
 }
 
-function calcolaRigaManuale(){
-  var prezzoLordo = n(byId("manualPrezzo").value);
-  var s1 = n(byId("manualSconto1").value);
-  var s2 = n(byId("manualSconto2").value);
-  var m  = n(byId("manualMargine").value);
+function calcolaRigaManuale() {
+  var prezzoLordo = toNumber(getEl("manualPrezzo").value);
+  var s1 = toNumber(getEl("manualSconto1").value);
+  var s2 = toNumber(getEl("manualSconto2").value);
 
-  var trp  = n(byId("manualTrasporto").value);
-  var inst = n(byId("manualInstallazione").value);
+  var m = toNumber(getEl("manualMargine").value);
+  var marginEff = m > 0 ? m : getDefaultCustomerMargin();
 
-  var q = clampMin(n(byId("manualQuantita").value), 1);
-  q = Math.round(q);
+  var shipping = toNumber(getEl("manualTrasporto").value);
+  var install = toNumber(getEl("manualInstallazione").value);
 
-  var vend = n(byId("manualVenduto").value);
+  var qty = clampMin(toNumber(getEl("manualQuantita").value), 1);
+  qty = Math.round(qty);
 
-  var netto = roundTwo(prezzoLordo * (1 - s1/100) * (1 - s2/100));
-  var mEff = (m > 0) ? m : (byId("margineRivDefault") ? n(byId("margineRivDefault").value) : 0);
+  var sold = toNumber(getEl("manualVenduto").value);
 
-  var prezzoRiv = calcPrezzoConMargine(netto, mEff);
-  var totRiv = roundTwo((prezzoRiv + trp + inst) * q);
-  var diff = roundTwo(vend - totRiv);
+  var netto = round2(prezzoLordo * (1 - s1 / 100) * (1 - s2 / 100));
+  var priceWithMargin = calcPriceWithMargin(netto, marginEff);
 
-  byId("manualNetto").textContent = netto.toFixed(2) + "€";
-  byId("manualTotRiv").textContent = totRiv.toFixed(2) + "€";
-  byId("manualDiff").textContent = diff.toFixed(2) + "€";
+  var totalRiv = round2((priceWithMargin + shipping + install) * qty);
+  var diff = round2(sold - totalRiv);
+
+  getEl("manualNetto").textContent = netto.toFixed(2) + "€";
+  getEl("manualTotRiv").textContent = totalRiv.toFixed(2) + "€";
+  getEl("manualDiff").textContent = diff.toFixed(2) + "€";
 }
 
-function aggiungiArticoloManuale(){
+// FUNZIONE STORICA
+function aggiungiArticoloManuale() {
   if (window.track && window.track.add_item_manual) window.track.add_item_manual();
 
-  var nuovo = {
-    codice: (byId("manualCodice").value || "").trim(),
-    descrizione: (byId("manualDescrizione").value || "").trim(),
-    prezzoLordo: n(byId("manualPrezzo").value),
-    sconto: n(byId("manualSconto1").value),
-    sconto2: n(byId("manualSconto2").value),
-    margine: n(byId("manualMargine").value),
-    costoTrasporto: n(byId("manualTrasporto").value),
-    costoInstallazione: n(byId("manualInstallazione").value),
-    quantita: Math.round(clampMin(n(byId("manualQuantita").value), 1)),
-    venduto: n(byId("manualVenduto").value)
+  var newItem = {
+    codice: (getEl("manualCodice").value || "").trim(),
+    descrizione: (getEl("manualDescrizione").value || "").trim(),
+    prezzoLordo: toNumber(getEl("manualPrezzo").value),
+    sconto: toNumber(getEl("manualSconto1").value),
+    sconto2: toNumber(getEl("manualSconto2").value),
+    margine: toNumber(getEl("manualMargine").value), // 0 = dinamico default
+    costoTrasporto: toNumber(getEl("manualTrasporto").value),
+    costoInstallazione: toNumber(getEl("manualInstallazione").value),
+    quantita: Math.round(clampMin(toNumber(getEl("manualQuantita").value), 1)),
+    venduto: toNumber(getEl("manualVenduto").value),
   };
 
-  if (!autoPopolaCosti){
-    nuovo.costoTrasporto = 0;
-    nuovo.costoInstallazione = 0;
+  if (!autoFillServices) {
+    newItem.costoTrasporto = 0;
+    newItem.costoInstallazione = 0;
   }
 
-  articoliAggiunti.push(nuovo);
+  quoteItems.push(newItem);
+
   annullaArticoloManuale();
-  aggiornaTabellaArticoli();
-  aggiornaTotaliGenerali();
-  aggiornaBoxNoleggio();
+  renderItemsTable();
+  updateTotals();
+  updateRentalBox();
 }
 
-function annullaArticoloManuale(){
-  var row = byId("manual-input-row");
+function annullaArticoloManuale() {
+  var row = getEl("manual-input-row");
   if (row && row.parentNode) row.parentNode.removeChild(row);
 }
+
 // ===============================
 // Report TXT / WhatsApp
-// - servizi stampati solo se toggleMostraServizi ON
 // ===============================
-function generaReportTesto(includeMargine){
-  var showServ = (byId("toggleMostraServizi") && byId("toggleMostraServizi").checked);
+function generaReportTesto(includeMargine) {
+  var showServ = getEl("toggleMostraServizi") && getEl("toggleMostraServizi").checked;
 
   var report = includeMargine
     ? "Report Articoli (Rivenditore - con Margine)\n\n"
@@ -653,175 +785,185 @@ function generaReportTesto(includeMargine){
 
   var tot = 0;
 
-  for (var i=0;i<articoliAggiunti.length;i++){
-    var a = articoliAggiunti[i];
-    var q = clampMin(n(a.quantita), 1);
-    q = Math.round(q);
+  for (var i = 0; i < quoteItems.length; i++) {
+    var item = quoteItems[i];
+    var qty = clampMin(toNumber(item.quantita), 1);
+    qty = Math.round(qty);
 
-    var lordo = n(a.prezzoLordo);
-    var s1 = n(a.sconto);
-    var s2 = n(a.sconto2);
-    var netto = calcNetto(a);
+    var lordo = toNumber(item.prezzoLordo);
+    var s1 = toNumber(item.sconto);
+    var s2 = toNumber(item.sconto2);
+    var netto = calcNetto(item);
 
-    var trp = n(a.costoTrasporto);
-    var inst = n(a.costoInstallazione);
-    var serv = trp + inst;
+    var shipping = toNumber(item.costoTrasporto);
+    var install = toNumber(item.costoInstallazione);
+    var servicesUnit = shipping + install;
 
-    var linea = 0;
-    if (includeMargine){
-      var prezzoRiv = calcPrezzoConMargine(netto, getMargineRiv(a));
-      linea = (prezzoRiv + serv) * q;
+    var line = 0;
+
+    if (includeMargine) {
+      var priceWithMargin = calcPriceWithMargin(netto, getEffectiveRowMargin(item));
+      line = (priceWithMargin + servicesUnit) * qty;
     } else {
-      linea = (netto + serv) * q;
+      line = (netto + servicesUnit) * qty;
     }
 
-    linea = roundTwo(linea);
-    tot += linea;
+    line = round2(line);
+    tot += line;
 
-    report += (i+1) + ". " + (a.codice || "") + " — " + (a.descrizione || "") + "\n";
+    report += (i + 1) + ". " + (item.codice || "") + " — " + (item.descrizione || "") + "\n";
     report += "Lordo: " + lordo.toFixed(2) + "€ | S1: " + s1.toFixed(2) + "% | S2: " + s2.toFixed(2) + "%\n";
-    report += "Netto: " + netto.toFixed(2) + "€ | Q.tà: " + q + "\n";
-    if (includeMargine) report += "Margine%: " + getMargineRiv(a).toFixed(2) + "\n";
-    if (showServ){
-      report += "Trasporto: " + trp.toFixed(2) + "€ | Installazione: " + inst.toFixed(2) + "€\n";
-    }
-    report += "Totale Riga: " + linea.toFixed(2) + "€\n\n";
+    report += "Netto: " + netto.toFixed(2) + "€ | Q.tà: " + qty + "\n";
+    if (includeMargine) report += "Margine%: " + getEffectiveRowMargin(item).toFixed(2) + "\n";
+    if (showServ) report += "Trasporto: " + shipping.toFixed(2) + "€ | Installazione: " + install.toFixed(2) + "€\n";
+    report += "Totale Riga: " + line.toFixed(2) + "€\n\n";
   }
 
-  report += "TOTALE: " + roundTwo(tot).toFixed(2) + "€\n";
+  report += "TOTALE: " + round2(tot).toFixed(2) + "€\n";
   return report;
 }
 
-function shareWhatsApp(text){
+function shareWhatsApp(text) {
   var appUrl = "whatsapp://send?text=" + encodeURIComponent(text);
   var webUrl = "https://api.whatsapp.com/send?text=" + encodeURIComponent(text);
-  setTimeout(function(){ window.open(webUrl, "_blank"); }, 800);
+  setTimeout(function () { window.open(webUrl, "_blank"); }, 800);
   window.location = appUrl;
 }
 
-function openText(content){
+function openText(content) {
   var w = window.open("", "_blank");
   if (!w) { alert("Popup bloccato: abilita l'apertura finestre o usa Safari."); return; }
   w.document.open();
-  w.document.write("<!doctype html><html><head><meta charset='utf-8'><title>TXT</title></head>" +
-                   "<body style='font-family:monospace;white-space:pre-wrap;padding:12px;'>" +
-                   esc(content) +
-                   "</body></html>");
+  w.document.write(
+    "<!doctype html><html><head><meta charset='utf-8'><title>TXT</title></head>" +
+    "<body style='font-family:monospace;white-space:pre-wrap;padding:12px;'>" +
+    escapeHtml(content) +
+    "</body></html>"
+  );
   w.document.close();
 }
 
-function inviaReportWhatsApp(){
-  if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: 'standard' });
+// nomi nuovi + alias vecchi
+function sendWhatsAppReport() {
+  if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: "standard" });
   shareWhatsApp(generaReportTesto(true));
 }
-function generaTXTReport(){
-  if (window.track && window.track.export_txt) window.track.export_txt({ variant: 'standard' });
+function exportTxtReport() {
+  if (window.track && window.track.export_txt) window.track.export_txt({ variant: "standard" });
   openText(generaReportTesto(true));
 }
-function inviaReportWhatsAppSenzaMargine(){
-  if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: 'no_margin' });
+function sendWhatsAppReportNoMargin() {
+  if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: "no_margin" });
   shareWhatsApp(generaReportTesto(false));
 }
-function generaTXTReportSenzaMargine(){
-  if (window.track && window.track.export_txt) window.track.export_txt({ variant: 'no_margin' });
+function exportTxtReportNoMargin() {
+  if (window.track && window.track.export_txt) window.track.export_txt({ variant: "no_margin" });
   openText(generaReportTesto(false));
 }
 
+function inviaReportWhatsApp(){ sendWhatsAppReport(); }
+function generaTXTReport(){ exportTxtReport(); }
+function inviaReportWhatsAppSenzaMargine(){ sendWhatsAppReportNoMargin(); }
+function generaTXTReportSenzaMargine(){ exportTxtReportNoMargin(); }
+
 // ===============================
 // Preventivi stampabili (Riv / Cliente Finale)
-// - Cliente: servizi inclusi nei calcoli ma NON mostrati
-// - Riv: servizi mostrabili se toggleMostraServizi ON
 // ===============================
-function apriPreventivo(variant){
+function apriPreventivo(variant) {
+  openPrintableQuote(variant);
+}
+
+function openPrintableQuote(variant) {
   if (window.track && window.track.open_preventivo) window.track.open_preventivo({ variant: variant });
 
-  var mostraIVA = byId("preventivoMostraIVA") && byId("preventivoMostraIVA").checked;
-  var mostraUnit = byId("preventivoPrezziUnitari") && byId("preventivoPrezziUnitari").checked;
-  var ivaPerc = byId("ivaPerc") ? n(byId("ivaPerc").value) : 0;
+  var showVat = getEl("preventivoMostraIVA") && getEl("preventivoMostraIVA").checked;
+  var showUnit = getEl("preventivoPrezziUnitari") && getEl("preventivoPrezziUnitari").checked;
+  var vatPerc = getEl("ivaPerc") ? toNumber(getEl("ivaPerc").value) : 0;
 
-  var titolo = (variant === 'cli') ? "Preventivo Cliente Finale" : "Preventivo Rivenditore";
-  var margineCli = getMargineCli();
+  var title = variant === "cli" ? "Preventivo Cliente Finale" : "Preventivo Rivenditore";
+  var defaultCustomerMargin = getDefaultCustomerMargin();
   var ana = getAnagraficaForVariant(variant);
 
   // servizi visibili SOLO su riv (opzionale)
-  var mostraServiziInStampa = (variant === 'riv') && (byId("toggleMostraServizi") && byId("toggleMostraServizi").checked);
+  var showServicesInPrint = variant === "riv" && (getEl("toggleMostraServizi") && getEl("toggleMostraServizi").checked);
 
   var rowsHtml = "";
   var tot = 0;
 
-  for (var i=0;i<articoliAggiunti.length;i++){
-    var a = articoliAggiunti[i];
-    var q = clampMin(n(a.quantita), 1);
-    q = Math.round(q);
+  for (var i = 0; i < quoteItems.length; i++) {
+    var item = quoteItems[i];
+    var qty = clampMin(toNumber(item.quantita), 1);
+    qty = Math.round(qty);
 
-    var lordoBene = n(a.prezzoLordo);
+    var gross = toNumber(item.prezzoLordo);
+    var netGood = calcNetto(item);
 
-    var nettoBene = calcNetto(a);
+    var shipping = toNumber(item.costoTrasporto);
+    var install = toNumber(item.costoInstallazione);
+    var servicesUnit = shipping + install;
 
-    var trasporto = n(a.costoTrasporto);
-    var installazione = n(a.costoInstallazione);
-    var servUnit = trasporto + installazione;
-
-    var prezzoUnitBase = 0;
-    if (variant === 'cli'){
-      prezzoUnitBase = calcPrezzoConMargine(nettoBene, margineCli);
+    // base unit price (bene + margine)
+    var priceUnitBase = 0;
+    if (variant === "cli") {
+      // cliente: margine effettivo riga (0 => default cliente)
+      priceUnitBase = calcPriceWithMargin(netGood, getEffectiveRowMargin(item));
     } else {
-      prezzoUnitBase = calcPrezzoConMargine(nettoBene, getMargineRiv(a));
+      // riv: margine effettivo riga (0 => default cliente)
+      priceUnitBase = calcPriceWithMargin(netGood, getMargineRiv(item));
     }
 
     // Netto mostrato:
     // - cli: (bene+margine) + servizi, ma servizi NON in colonna
     // - riv: netto bene
-    var nettoMostratoUnit = (variant === 'cli')
-      ? roundTwo(prezzoUnitBase + servUnit)
-      : roundTwo(nettoBene);
+    var netShownUnit = variant === "cli"
+      ? round2(priceUnitBase + servicesUnit)
+      : round2(netGood);
 
     // sconto mostrato
-    var scontoTxt = "";
-    if (variant === 'cli'){
-      var sInv = calcScontoClientePerc(lordoBene, nettoMostratoUnit, servUnit);
-      scontoTxt = sInv.toFixed(2) + "%";
+    var discountTxt = "";
+    if (variant === "cli") {
+      var inv = calcCustomerDiscountPercent(gross, netShownUnit, servicesUnit);
+      discountTxt = inv.toFixed(2) + "%";
     } else {
-      scontoTxt = n(a.sconto).toFixed(2) + "% + " + n(a.sconto2).toFixed(2) + "%";
+      discountTxt = toNumber(item.sconto).toFixed(2) + "% + " + toNumber(item.sconto2).toFixed(2) + "%";
     }
 
-    // Totale riga:
-    var totaleRiga = 0;
-    if (variant === 'cli'){
-      totaleRiga = roundTwo(nettoMostratoUnit * q);
+    // Totale riga
+    var rowTotal = 0;
+    if (variant === "cli") {
+      rowTotal = round2(netShownUnit * qty);
     } else {
-      totaleRiga = roundTwo((prezzoUnitBase + servUnit) * q);
+      rowTotal = round2((priceUnitBase + servicesUnit) * qty);
     }
-    tot += totaleRiga;
+    tot += rowTotal;
 
     rowsHtml += "<tr>";
-    rowsHtml += "<td>" + esc(a.codice) + "</td>";
-    rowsHtml += "<td style='text-align:left'>" + esc(a.descrizione) + "</td>";
-    rowsHtml += "<td>" + q + "</td>";
-    rowsHtml += "<td>" + lordoBene.toFixed(2) + "€</td>";
-    rowsHtml += "<td>" + esc(scontoTxt) + "</td>";
-    rowsHtml += "<td>" + nettoMostratoUnit.toFixed(2) + "€</td>";
+    rowsHtml += "<td>" + escapeHtml(item.codice) + "</td>";
+    rowsHtml += "<td style='text-align:left'>" + escapeHtml(item.descrizione) + "</td>";
+    rowsHtml += "<td>" + qty + "</td>";
+    rowsHtml += "<td>" + gross.toFixed(2) + "€</td>";
+    rowsHtml += "<td>" + escapeHtml(discountTxt) + "</td>";
+    rowsHtml += "<td>" + netShownUnit.toFixed(2) + "€</td>";
 
-    if (mostraUnit){
-      rowsHtml += "<td>" + (variant === 'cli' ? nettoMostratoUnit.toFixed(2) : prezzoUnitBase.toFixed(2)) + "€</td>";
+    if (showUnit) {
+      rowsHtml += "<td>" + (variant === "cli" ? netShownUnit.toFixed(2) : priceUnitBase.toFixed(2)) + "€</td>";
+    }
+    if (showServicesInPrint) {
+      rowsHtml += "<td>" + servicesUnit.toFixed(2) + "€</td>";
     }
 
-    if (mostraServiziInStampa){
-      rowsHtml += "<td>" + servUnit.toFixed(2) + "€</td>";
-    }
-
-    rowsHtml += "<td><b>" + totaleRiga.toFixed(2) + "€</b></td>";
+    rowsHtml += "<td><b>" + rowTotal.toFixed(2) + "€</b></td>";
     rowsHtml += "</tr>";
   }
 
-  tot = roundTwo(tot);
-  var imp = tot;
-  var iva = mostraIVA ? roundTwo(imp * (ivaPerc/100)) : 0;
-  var totIva = mostraIVA ? roundTwo(imp + iva) : imp;
+  tot = round2(tot);
+  var taxable = tot;
+  var vat = showVat ? round2(taxable * (vatPerc / 100)) : 0;
+  var totalWithVat = showVat ? round2(taxable + vat) : taxable;
 
   var html = "";
   html += "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>";
-  html += "<title>" + esc(titolo) + "</title>";
+  html += "<title>" + escapeHtml(title) + "</title>";
   html += "<style>";
   html += "body{font-family:Arial;margin:18px;color:#111}";
   html += "h1{margin:0 0 6px 0;font-size:20px}";
@@ -835,57 +977,57 @@ function apriPreventivo(variant){
   html += "@media print{.btn{display:none}}";
   html += "</style></head><body>";
 
-  html += "<h1>" + esc(titolo) + "</h1>";
+  html += "<h1>" + escapeHtml(title) + "</h1>";
   html += "<div class='sub'>Generato da CSVXpressGold — " + new Date().toLocaleString() + "</div>";
 
   // anagrafica (solo se valorizzata)
-  var hasAny = (ana.azienda||ana.referente||ana.indirizzo||ana.email||ana.cell||ana.piva||ana.cf||ana.note);
-  if (hasAny){
+  var hasAny = (ana.azienda || ana.referente || ana.indirizzo || ana.email || ana.cell || ana.piva || ana.cf || ana.note);
+  if (hasAny) {
     html += "<div class='box'>";
-    html += "<div style='font-weight:700;margin-bottom:6px'>Anagrafica (" + esc(ana._label || "Dati") + ")</div>";
-    if (ana.azienda)   html += "<div><b>Azienda:</b> " + esc(ana.azienda) + "</div>";
-    if (ana.referente) html += "<div><b>Referente:</b> " + esc(ana.referente) + "</div>";
-    if (ana.indirizzo) html += "<div><b>Indirizzo:</b> " + esc(ana.indirizzo) + "</div>";
-    if (ana.email)     html += "<div><b>Email:</b> " + esc(ana.email) + "</div>";
-    if (ana.cell)      html += "<div><b>Cellulare:</b> " + esc(ana.cell) + "</div>";
-    if (ana.piva)      html += "<div><b>P.IVA:</b> " + esc(ana.piva) + "</div>";
-    if (ana.cf)        html += "<div><b>C.F.:</b> " + esc(ana.cf) + "</div>";
-    if (ana.note)      html += "<div><b>Note:</b> " + esc(ana.note) + "</div>";
+    html += "<div style='font-weight:700;margin-bottom:6px'>Anagrafica (" + escapeHtml(ana._label || "Dati") + ")</div>";
+    if (ana.azienda) html += "<div><b>Azienda:</b> " + escapeHtml(ana.azienda) + "</div>";
+    if (ana.referente) html += "<div><b>Referente:</b> " + escapeHtml(ana.referente) + "</div>";
+    if (ana.indirizzo) html += "<div><b>Indirizzo:</b> " + escapeHtml(ana.indirizzo) + "</div>";
+    if (ana.email) html += "<div><b>Email:</b> " + escapeHtml(ana.email) + "</div>";
+    if (ana.cell) html += "<div><b>Cellulare:</b> " + escapeHtml(ana.cell) + "</div>";
+    if (ana.piva) html += "<div><b>P.IVA:</b> " + escapeHtml(ana.piva) + "</div>";
+    if (ana.cf) html += "<div><b>C.F.:</b> " + escapeHtml(ana.cf) + "</div>";
+    if (ana.note) html += "<div><b>Note:</b> " + escapeHtml(ana.note) + "</div>";
     html += "</div>";
   }
 
-  if (variant === 'riv'){
-    var defM = byId("margineRivDefault") ? n(byId("margineRivDefault").value).toFixed(2) : "0.00";
+  if (variant === "riv") {
+    var defM = getEl("margineRivDefault") ? toNumber(getEl("margineRivDefault").value).toFixed(2) : "0.00";
     html += "<div class='sub'><b>Margine Rivenditore:</b> per riga (o default " + defM + "%) — <b>Sconto mostrato:</b> S1 + S2</div>";
   }
 
   html += "<table><thead><tr>";
   html += "<th>Codice</th><th style='text-align:left'>Descrizione</th><th>Q.tà</th>";
-  html += "<th>Lordo</th><th>Sconto</th><th>" + (variant === 'cli' ? "Netto cliente" : "Netto") + "</th>";
-  if (mostraUnit) html += "<th>Prezzo Unit.</th>";
-  if (mostraServiziInStampa) html += "<th>Servizi</th>";
+  html += "<th>Lordo</th><th>Sconto</th><th>" + (variant === "cli" ? "Netto cliente" : "Netto") + "</th>";
+  if (showUnit) html += "<th>Prezzo Unit.</th>";
+  if (showServicesInPrint) html += "<th>Servizi</th>";
   html += "<th>Totale Riga</th>";
   html += "</tr></thead><tbody>" + rowsHtml + "</tbody></table>";
 
   html += "<div class='tot'>";
-  html += "<div><b>Imponibile:</b> " + imp.toFixed(2) + "€</div>";
-  if (mostraIVA) html += "<div><b>IVA (" + ivaPerc.toFixed(2) + "%):</b> " + iva.toFixed(2) + "€</div>";
-  html += "<div style='font-size:18px;margin-top:6px'><b>TOTALE:</b> " + totIva.toFixed(2) + "€</div>";
+  html += "<div><b>Imponibile:</b> " + taxable.toFixed(2) + "€</div>";
+  if (showVat) html += "<div><b>IVA (" + vatPerc.toFixed(2) + "%):</b> " + vat.toFixed(2) + "€</div>";
+  html += "<div style='font-size:18px;margin-top:6px'><b>TOTALE:</b> " + totalWithVat.toFixed(2) + "€</div>";
   html += "</div>";
 
   // Box noleggio (opzionale)
-  var showNol = byId("noleggioMostraNelPreventivo") && byId("noleggioMostraNelPreventivo").checked;
-  if (showNol){
-    var durSel = byId("noleggioDurata") ? byId("noleggioDurata").value : 24;
-    var outN = calcolaNoleggio(imp, durSel);
-    var showDettN = byId("noleggioMostraDettagli") && byId("noleggioMostraDettagli").checked;
+  var showRent = getEl("noleggioMostraNelPreventivo") && getEl("noleggioMostraNelPreventivo").checked;
+  if (showRent) {
+    var durSel = getEl("noleggioDurata") ? getEl("noleggioDurata").value : 24;
+    var outN = calcolaNoleggio(taxable, durSel);
+    var showDettN = getEl("noleggioMostraDettagli") && getEl("noleggioMostraDettagli").checked;
 
     html += "<div class='box'>";
     html += "<div style='font-weight:700;margin-bottom:6px'>Noleggio Operativo (simulazione)</div>";
-    html += "<div>Durata: <b>" + esc(String(durSel)) + " mesi</b></div>";
+    html += "<div>Durata: <b>" + escapeHtml(String(durSel)) + " mesi</b></div>";
     html += "<div>Rata mensile: <b>" + formatNumberIT(outN.rata) + " €</b></div>";
     html += "<div>Spese contratto: <b>" + formatNumberIT(outN.spese) + " €</b></div>";
-    if (showDettN){
+    if (showDettN) {
       html += "<div>Costo giornaliero: <b>" + formatNumberIT(outN.giorno) + " €</b> — Costo orario: <b>" + formatNumberIT(outN.ora) + " €</b></div>";
       html += "<div style='margin-top:6px;color:#444'>Spese incasso RID: 4,00 € al mese</div>";
     }
@@ -896,7 +1038,10 @@ function apriPreventivo(variant){
   html += "</body></html>";
 
   var w = window.open("", "_blank");
-  if (!w) { alert("Popup bloccato: abilita l'apertura finestre o usa Safari."); return; }
+  if (!w) {
+    alert("Popup bloccato: abilita l'apertura finestre o usa Safari.");
+    return;
+  }
   w.document.open();
   w.document.write(html);
   w.document.close();
@@ -906,13 +1051,14 @@ function apriPreventivo(variant){
 // NOLEGGIO
 // ===============================
 function formatNumberIT(value) {
-  value = (typeof value === "number") ? value : n(value);
+  value = typeof value === "number" ? value : toNumber(value);
   try {
     return value.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  } catch(e) {
-    return value.toFixed(2).replace('.', ',');
+  } catch (e) {
+    return value.toFixed(2).replace(".", ",");
   }
 }
+
 function calcolaSpeseContratto(importo) {
   if (importo < 5001) return 75;
   if (importo < 10001) return 100;
@@ -920,31 +1066,33 @@ function calcolaSpeseContratto(importo) {
   if (importo < 50001) return 225;
   return 300;
 }
+
 function calcolaCanoniPerDurate(importo) {
   var coefficienti = {
-    5000:   { 12: 0.081123, 18: 0.058239, 24: 0.045554, 36: 0.032359, 48: 0.025445, 60: 0.021358 },
-    15000:  { 12: 0.081433, 18: 0.058341, 24: 0.045535, 36: 0.032207, 48: 0.025213, 60: 0.021074 },
-    25000:  { 12: 0.081280, 18: 0.058195, 24: 0.045392, 36: 0.032065, 48: 0.025068, 60: 0.020926 },
-    50000:  { 12: 0.080770, 18: 0.057710, 24: 0.044915, 36: 0.031592, 48: 0.024588, 60: 0.020437 },
-    100000: { 12: 0.080744, 18: 0.057686, 24: 0.044891, 36: 0.031568, 48: 0.024564, 60: 0.020413 }
+    5000: { 12: 0.081123, 18: 0.058239, 24: 0.045554, 36: 0.032359, 48: 0.025445, 60: 0.021358 },
+    15000: { 12: 0.081433, 18: 0.058341, 24: 0.045535, 36: 0.032207, 48: 0.025213, 60: 0.021074 },
+    25000: { 12: 0.08128, 18: 0.058195, 24: 0.045392, 36: 0.032065, 48: 0.025068, 60: 0.020926 },
+    50000: { 12: 0.08077, 18: 0.05771, 24: 0.044915, 36: 0.031592, 48: 0.024588, 60: 0.020437 },
+    100000: { 12: 0.080744, 18: 0.057686, 24: 0.044891, 36: 0.031568, 48: 0.024564, 60: 0.020413 },
   };
 
-  var keys = [5000,15000,25000,50000,100000];
+  var keys = [5000, 15000, 25000, 50000, 100000];
   var fascia = 100000;
-  for (var i=0;i<keys.length;i++){
+  for (var i = 0; i < keys.length; i++) {
     if (importo <= keys[i]) { fascia = keys[i]; break; }
   }
 
   var result = {};
-  var mesiList = [12,18,24,36,48,60];
-  for (var j=0;j<mesiList.length;j++){
+  var mesiList = [12, 18, 24, 36, 48, 60];
+  for (var j = 0; j < mesiList.length; j++) {
     var mesi = mesiList[j];
     result[mesi] = importo * coefficienti[fascia][mesi];
   }
   return result;
 }
-function calcolaNoleggio(importoImponibile, durataMesi){
-  var importo = n(importoImponibile);
+
+function calcolaNoleggio(importoImponibile, durataMesi) {
+  var importo = toNumber(importoImponibile);
   durataMesi = parseInt(durataMesi, 10) || 24;
 
   if (!importo || importo <= 0) {
@@ -961,40 +1109,45 @@ function calcolaNoleggio(importoImponibile, durataMesi){
   return { rata: rata, spese: spese, giorno: giorno, ora: ora, canoni: canoni };
 }
 
-function getTotaleImponibileDaArticoli(variant){
+function getTaxableTotalFromItems() {
   var tot = 0;
-  for (var i=0;i<articoliAggiunti.length;i++){
-    var a = articoliAggiunti[i];
-    var q = clampMin(n(a.quantita), 1);
-    q = Math.round(q);
 
-    var netto = calcNetto(a);
+  for (var i = 0; i < quoteItems.length; i++) {
+    var item = quoteItems[i];
 
-    // Margine sempre CLIENTE FINALE:
-// se la riga ha un margine > 0 usa quello,
-// altrimenti usa il Margine Cliente di default
-var margineEff = n(a.margine) > 0 ? n(a.margine) : getMargineCli();
-var prezzoUnit = calcPrezzoConMargine(netto, margineEff);
+    var qty = clampMin(toNumber(item.quantita), 1);
+    qty = Math.round(qty);
 
-    var serv = n(a.costoTrasporto) + n(a.costoInstallazione);
-    var riga = roundTwo((prezzoUnit + serv) * q);
-    tot += riga;
+    var netto = calcNetto(item);
+
+    // ✅ margine dinamico: se riga=0 usa default cliente
+    var marginEff = getEffectiveRowMargin(item);
+    var priceUnit = calcPriceWithMargin(netto, marginEff);
+
+    var services = toNumber(item.costoTrasporto) + toNumber(item.costoInstallazione);
+    var row = round2((priceUnit + services) * qty);
+    tot += row;
   }
-  return roundTwo(tot);
+
+  return round2(tot);
 }
 
-function aggiornaBoxNoleggio(){
-  var dur = byId("noleggioDurata");
+function aggiornaBoxNoleggio() {
+  updateRentalBox();
+}
+
+function updateRentalBox() {
+  var dur = getEl("noleggioDurata");
   if (!dur) return;
 
-  var imponibile = getTotaleImponibileDaArticoli('cli');
-  var out = calcolaNoleggio(imponibile, dur.value);
+  var taxable = getTaxableTotalFromItems();
+  var out = calcolaNoleggio(taxable, dur.value);
 
-  var elR = byId("noleggioRata");
-  var elS = byId("noleggioSpese");
-  var elDH = byId("noleggioDayHour");
+  var elR = getEl("noleggioRata");
+  var elS = getEl("noleggioSpese");
+  var elDH = getEl("noleggioDayHour");
 
-  if (!imponibile || imponibile <= 0){
+  if (!taxable || taxable <= 0) {
     if (elR) elR.textContent = "—";
     if (elS) elS.textContent = "—";
     if (elDH) elDH.textContent = "—";
@@ -1004,32 +1157,34 @@ function aggiornaBoxNoleggio(){
   if (elR) elR.textContent = formatNumberIT(out.rata) + " € / mese";
   if (elS) elS.textContent = formatNumberIT(out.spese) + " €";
 
-  var showDett = byId("noleggioMostraDettagli") && byId("noleggioMostraDettagli").checked;
-  if (elDH){
-    if (showDett){
-      elDH.textContent = formatNumberIT(out.giorno) + " €/giorno — " + formatNumberIT(out.ora) + " €/ora";
-    } else {
-      elDH.textContent = "—";
-    }
+  var showDett = getEl("noleggioMostraDettagli") && getEl("noleggioMostraDettagli").checked;
+  if (elDH) {
+    elDH.textContent = showDett
+      ? formatNumberIT(out.giorno) + " €/giorno — " + formatNumberIT(out.ora) + " €/ora"
+      : "—";
   }
 }
 
-function scaricaNoleggioTXT(){
+function scaricaNoleggioTXT() {
+  downloadRentalTXT();
+}
+
+function downloadRentalTXT() {
   if (window.track && window.track.noleggio_txt) window.track.noleggio_txt();
 
-  var imponibile = getTotaleImponibileDaArticoli('cli');
-  if (!imponibile || imponibile <= 0){
+  var taxable = getTaxableTotalFromItems();
+  if (!taxable || taxable <= 0) {
     alert("Aggiungi almeno un articolo prima di generare il TXT noleggio.");
     return;
   }
 
-  var canoni = calcolaCanoniPerDurate(imponibile);
-  var speseContratto = calcolaSpeseContratto(imponibile);
+  var canoni = calcolaCanoniPerDurate(taxable);
+  var speseContratto = calcolaSpeseContratto(taxable);
 
   var testo = "";
   testo += "PREVENTIVO DI NOLEGGIO OPERATIVO BCC\n";
   testo += "--------------------------------------\n\n";
-  testo += "Importo (imponibile): " + formatNumberIT(imponibile) + " €\n\n";
+  testo += "Importo (imponibile): " + formatNumberIT(taxable) + " €\n\n";
 
   testo += "CANONI MENSILI DISPONIBILI:\n";
   testo += "12 mesi: " + formatNumberIT(canoni[12]) + " €\n";
@@ -1058,12 +1213,12 @@ function scaricaNoleggioTXT(){
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    a.download = "preventivo_noleggio_" + Math.round(imponibile) + ".txt";
+    a.download = "preventivo_noleggio_" + Math.round(taxable) + ".txt";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  } catch(e) {
+  } catch (e) {
     openText(testo);
   }
 }
