@@ -781,24 +781,29 @@ function annullaArticoloManuale() {
 }
 
 // ===============================
-// REPORT WhatsApp (definitivo)
+// REPORT WhatsApp (definitivo) + NOLEGGIO (UPDATED)
 // - include SEMPRE: Codice articolo + Prezzo netto
 // - include SEMPRE: dicitura "prezzi IVA esclusa"
 // - Rivenditore: mostra lordo, sconti, netto, margine, servizi (se toggle attivo), totale riga
-// - Cliente: mostra netto unitario, qty, "chiavi in mano", totale riga (IVA esclusa)
+// - Cliente: mostra SEMPRE anche netto, qty, "chiavi in mano", totale riga (IVA esclusa)
+// - Noleggio: evita canoni doppi (una sola tabella coerente con includiRID)
 // ===============================
 
-// Alias comodi (se in futuro cambi nomi)
+// -------------------------------
+// REPORT WhatsApp
+// -------------------------------
+
+// Mostra servizi nei report (toggle)
 function getShowServiziReport() {
   return !!(getEl("toggleMostraServizi") && getEl("toggleMostraServizi").checked);
 }
 
-// Formattazione € per WhatsApp (niente simboli strani, sempre IT)
+// Formattazione € (IT)
 function moneyIT(v) {
   return formatNumberIT(toNumber(v)) + " €";
 }
 
-// Separatore semplice (WhatsApp friendly)
+// Separatore WhatsApp-friendly
 function waLine() {
   return "────────────────────";
 }
@@ -808,7 +813,7 @@ function waHeader(title) {
   return "📄 *" + title + "*\n_(prezzi IVA esclusa)_\n\n";
 }
 
-// Righe articolo - RIVENDITORE
+// Riga articolo — RIVENDITORE
 function waItemRiv(item, idx, showServ) {
   var codice = (item.codice || "").trim();
   var descr = (item.descrizione || "").trim();
@@ -834,21 +839,18 @@ function waItemRiv(item, idx, showServ) {
   var out = "";
   out += waLine() + "\n";
   out += "🧾 *" + escapeHtml(descr || ("Articolo " + (idx + 1))) + "*\n";
-  if (codice) out += "Codice articolo: " + escapeHtml(codice) + "\n\n";
+  out += "Codice: " + escapeHtml(codice || "—") + "\n\n";
 
-  out += "• Prezzo lordo: " + moneyIT(lordo) + "\n";
+  out += "• Lordo: " + moneyIT(lordo) + "\n";
   out += "• Sconto: S1 " + formatNumberIT(s1) + "% – S2 " + formatNumberIT(s2) + "%\n";
-  out += "• Prezzo netto: " + moneyIT(netto) + "\n";
+  out += "• Netto: " + moneyIT(netto) + "\n";
   out += "• Quantità: " + qty + "\n";
-
-  // Margine (riv) sempre utile
   out += "• Margine%: " + formatNumberIT(mEff) + "%\n";
 
   if (showServ) {
     out += "\n🚚 Trasporto: " + moneyIT(shipping) + "\n";
     out += "🛠 Installazione: " + moneyIT(install) + "\n";
   } else {
-    // anche se non mostro i servizi, il totale li include comunque (logica tua attuale)
     out += "\n_(Totale riga include eventuali servizi)_\n";
   }
 
@@ -858,7 +860,7 @@ function waItemRiv(item, idx, showServ) {
   return { text: out, rowTotal: totRow };
 }
 
-// Righe articolo - CLIENTE FINALE
+// Riga articolo — CLIENTE FINALE (chiavi in mano) + netto SEMPRE
 function waItemCli(item, idx) {
   var codice = (item.codice || "").trim();
   var descr = (item.descrizione || "").trim();
@@ -882,13 +884,14 @@ function waItemCli(item, idx) {
   var out = "";
   out += waLine() + "\n";
   out += "🧾 *" + escapeHtml(descr || ("Articolo " + (idx + 1))) + "*\n";
-  if (codice) out += "Codice articolo: " + escapeHtml(codice) + "\n\n";
+  out += "Codice: " + escapeHtml(codice || "—") + "\n\n";
 
   out += "• Quantità: " + qty + "\n";
-  out += "• Prezzo netto unitario: " + moneyIT(netto) + "\n";
-  out += "• Fornitura chiavi in mano\n";
+  out += "• Netto (bene): " + moneyIT(netto) + "\n";
+  out += "• Fornitura *chiavi in mano*\n";
   out += "  (prodotto + trasporto + installazione)\n";
-  out += "\n💰 *Totale*: " + moneyIT(totRow) + "\n";
+  out += "• Prezzo unitario finale: " + moneyIT(unitFinal) + "\n";
+  out += "\n💰 *Totale riga*: " + moneyIT(totRow) + "\n";
   out += waLine() + "\n";
 
   return { text: out, rowTotal: totRow };
@@ -913,7 +916,6 @@ function generateWhatsAppReport(variant) {
   var text = waHeader(title);
 
   var tot = 0;
-
   for (var i = 0; i < quoteItems.length; i++) {
     var item = quoteItems[i];
 
@@ -934,20 +936,21 @@ function generateWhatsAppReport(variant) {
   return text;
 }
 
-// Wrapper comodi (da bottoni o funzioni esistenti)
+// Wrapper comodi
 function sendWhatsAppReport() {
   if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: "riv" });
   shareWhatsApp(generateWhatsAppReport("riv"));
 }
 
+// Se vuoi un bottone dedicato al cliente finale, chiamalo da HTML con questa
 function sendWhatsAppReportCliente() {
   if (window.track && window.track.report_whatsapp) window.track.report_whatsapp({ variant: "cli" });
   shareWhatsApp(generateWhatsAppReport("cli"));
 }
 
-// ===============================
+// -------------------------------
 // Preventivi stampabili (Riv / Cliente Finale)
-// ===============================
+// -------------------------------
 function apriPreventivo(variant) {
   openPrintableQuote(variant);
 }
@@ -1088,12 +1091,12 @@ function openPrintableQuote(variant) {
   if (showVat) html += "<div><b>IVA (" + vatPerc.toFixed(2) + "%):</b> " + vat.toFixed(2) + "€</div>";
   html += "<div style='font-size:18px;margin-top:6px'><b>TOTALE:</b> " + totalWithVat.toFixed(2) + "€</div>";
   html += "</div>";
-    // Box noleggio (opzionale) — UPDATED (RID variabile + includi RID + giorni/mese + ore/giorno)
+
+  // Box noleggio (opzionale) — UPDATED (RID variabile + includiRID + giorni/mese + ore/giorno)
   var showRent = getEl("noleggioMostraNelPreventivo") && getEl("noleggioMostraNelPreventivo").checked;
   if (showRent) {
     var durSel = getEl("noleggioDurata") ? getEl("noleggioDurata").value : 24;
 
-    // usa parametri avanzati se presenti (altrimenti fallback)
     var cfgP = getNoleggioConfig();
     var outN = calcolaNoleggio(taxable, durSel, cfgP);
 
@@ -1131,9 +1134,10 @@ function openPrintableQuote(variant) {
   w.document.close();
 }
 
-// ===============================
+// -------------------------------
 // NOLEGGIO (UPDATED)
-// ===============================
+// -------------------------------
+
 function formatNumberIT(value) {
   value = typeof value === "number" ? value : toNumber(value);
   try {
@@ -1143,7 +1147,7 @@ function formatNumberIT(value) {
   }
 }
 
-// Legge config noleggio dai campi HTML se esistono, altrimenti usa fallback
+// Legge config noleggio dai campi HTML se esistono, altrimenti fallback
 function getNoleggioConfig() {
   var ridEl = getEl("noleggioRidMensile");
   var incEl = getEl("noleggioIncludiRID");
@@ -1183,7 +1187,7 @@ function calcolaCanoniPerDurate(importo) {
     15000: { 12: 0.081433, 18: 0.058341, 24: 0.045535, 36: 0.032207, 48: 0.025213, 60: 0.021074 },
     25000: { 12: 0.08128, 18: 0.058195, 24: 0.045392, 36: 0.032065, 48: 0.025068, 60: 0.020926 },
     50000: { 12: 0.08077, 18: 0.05771, 24: 0.044915, 36: 0.031592, 48: 0.024588, 60: 0.020437 },
-    100000: { 12: 0.080744, 18: 0.057686, 24: 0.044891, 36: 0.031568, 48: 0.024564, 60: 0.020413 }
+    100000:{ 12: 0.080744,18: 0.057686,24: 0.044891,36: 0.031568,48: 0.024564,60: 0.020413 }
   };
 
   var keys = [5000, 15000, 25000, 50000, 100000];
@@ -1204,9 +1208,9 @@ function calcolaCanoniPerDurate(importo) {
 /**
  * OUTPUT:
  * - rataBase: canone mensile base
- * - rataMostrata: rata che mostri (base + RID se includiRID)
+ * - rataMostrata: rata mostrata (base + RID se includiRID)
  * - spese: spese contratto
- * - giorno / ora: calcolati sulla rataMostrata (quella che stai mostrando)
+ * - giorno / ora: calcolati sulla rataMostrata
  * - canoni: tabella canoni base per durate
  */
 function calcolaNoleggio(importoImponibile, durataMesi, cfg) {
@@ -1220,7 +1224,7 @@ function calcolaNoleggio(importoImponibile, durataMesi, cfg) {
   }
 
   var canoni = calcolaCanoniPerDurate(importo);
-  var rataBase = canoni[durataMesi] || 0;
+  var rataBase = toNumber(canoni[durataMesi] || 0);
   var spese = calcolaSpeseContratto(importo);
 
   var rataMostrata = cfg.includiRID ? (rataBase + cfg.ridMensile) : rataBase;
@@ -1240,29 +1244,21 @@ function calcolaNoleggio(importoImponibile, durataMesi, cfg) {
 
 function getTaxableTotalFromItems() {
   var tot = 0;
-
   for (var i = 0; i < quoteItems.length; i++) {
     var item = quoteItems[i];
-
-    var qty = clampMin(toNumber(item.quantita), 1);
-    qty = Math.round(qty);
+    var qty = Math.round(clampMin(toNumber(item.quantita), 1));
 
     var netto = calcNetto(item);
-
     var marginEff = getEffectiveRowMargin(item);
     var priceUnit = calcPriceWithMargin(netto, marginEff);
 
     var services = toNumber(item.costoTrasporto) + toNumber(item.costoInstallazione);
-    var row = round2((priceUnit + services) * qty);
-    tot += row;
+    tot += round2((priceUnit + services) * qty);
   }
-
   return round2(tot);
 }
 
-function aggiornaBoxNoleggio() {
-  updateRentalBox();
-}
+function aggiornaBoxNoleggio() { updateRentalBox(); }
 
 function updateRentalBox() {
   var dur = getEl("noleggioDurata");
@@ -1280,7 +1276,7 @@ function updateRentalBox() {
     if (elR) elR.textContent = "—";
     if (elS) elS.textContent = "—";
     if (elDH) elDH.textContent = "—";
-    renderCanoniTableIfAny(null, cfg); // svuota se presente
+    renderCanoniTableIfAny(null, cfg);
     return;
   }
 
@@ -1294,41 +1290,49 @@ function updateRentalBox() {
       : "—";
   }
 
-  // tabella canoni opzionale (se hai una tabella in HTML)
   renderCanoniTableIfAny(out, cfg);
 }
 
-// Se in HTML esiste una tabella con tbody id="noleggioCanoniTbody", la popola.
-// Se non esiste, non fa nulla.
+// Popola #noleggioCanoniTable tbody + mostra/nasconde #noleggioCanoniWrap
 function renderCanoniTableIfAny(out, cfg) {
+  var wrap = getEl("noleggioCanoniWrap");
+  var table = getEl("noleggioCanoniTable");
   var chk = getEl("noleggioMostraTabellaCanoni");
-  var mustShow = chk ? !!chk.checked : false;
 
-  var tbody = getEl("noleggioCanoniTbody");
+  if (!table) return;
+
+  var tbody = table.querySelector("tbody");
   if (!tbody) return;
+
+  var mustShow = chk ? !!chk.checked : false;
 
   tbody.innerHTML = "";
 
-  if (!mustShow || !out || !out.canoni) return;
+  if (!mustShow || !out || !out.canoni) {
+    if (wrap) wrap.style.display = "none";
+    return;
+  }
+
+  if (wrap) wrap.style.display = "block";
 
   var mesiList = [12, 18, 24, 36, 48, 60];
   for (var i = 0; i < mesiList.length; i++) {
     var m = mesiList[i];
-    var base = out.canoni[m] || 0;
-    var mostrata = cfg.includiRID ? (base + cfg.ridMensile) : base;
+
+    var base = toNumber(out.canoni[m] || 0);
+    var shown = cfg.includiRID ? (base + toNumber(cfg.ridMensile)) : base;
 
     var tr = document.createElement("tr");
     tr.innerHTML =
-      "<td style='text-align:center'>" + m + "</td>" +
+      "<td style='text-align:center'>" + m + " mesi</td>" +
       "<td style='text-align:right'>" + formatNumberIT(base) + " €</td>" +
-      "<td style='text-align:right'>" + formatNumberIT(mostrata) + " €</td>";
+      "<td style='text-align:right'>" + formatNumberIT(shown) + " €</td>";
+
     tbody.appendChild(tr);
   }
 }
 
-function scaricaNoleggioTXT() {
-  downloadRentalTXT();
-}
+function scaricaNoleggioTXT() { downloadRentalTXT(); }
 
 function downloadRentalTXT() {
   if (window.track && window.track.noleggio_txt) window.track.noleggio_txt();
@@ -1352,9 +1356,6 @@ function downloadRentalTXT() {
   var showDett = getEl("noleggioMostraDettagli") && getEl("noleggioMostraDettagli").checked;
   var showTable = getEl("noleggioMostraTabellaCanoni") && getEl("noleggioMostraTabellaCanoni").checked;
 
-  // UNA SOLA rata da mostrare coerente con includiRID
-  var rataShown = cfg.includiRID ? toNumber(out.rataMostrata) : toNumber(out.rataBase);
-
   var testo = "";
   testo += "PREVENTIVO DI NOLEGGIO OPERATIVO BCC (simulazione)\n";
   testo += "-----------------------------------------------\n\n";
@@ -1365,8 +1366,7 @@ function downloadRentalTXT() {
   testo += "RID incluso nella rata mostrata: " + (cfg.includiRID ? "SI" : "NO") + "\n";
   testo += "Parametri: " + cfg.giorniMese + " gg/mese — " + cfg.oreGiorno + " ore/giorno\n\n";
 
-  testo += "RATA MENSILE: " + formatNumberIT(rataShown) + " €";
-  testo += cfg.includiRID ? " (all-in)\n" : " (base)\n";
+  testo += "RATA MENSILE: " + formatNumberIT(out.rataMostrata) + " €" + (cfg.includiRID ? " (all-in)\n" : " (base)\n");
   testo += "Spese di contratto: " + formatNumberIT(speseContratto) + " €\n\n";
 
   if (showDett) {
@@ -1374,15 +1374,15 @@ function downloadRentalTXT() {
     testo += "Costo orario: " + formatNumberIT(out.ora) + " €\n\n";
   }
 
-  // UNA SOLA tabella canoni (coerente con includiRID)
+  // ✅ UNA SOLA tabella canoni (coerente con includiRID)
   if (showTable) {
-    testo += "CANONI MENSILI DISPONIBILI" + (cfg.includiRID ? " (all-in):\n" : " (base):\n");
+    testo += "CANONI MENSILI DISPONIBILI " + (cfg.includiRID ? "(all-in):\n" : "(base):\n");
     var mesiList = [12, 18, 24, 36, 48, 60];
     for (var i = 0; i < mesiList.length; i++) {
       var m = mesiList[i];
       var base = toNumber(canoni[m] || 0);
       var shown = cfg.includiRID ? (base + toNumber(cfg.ridMensile)) : base;
-      testo += (String(m).padStart ? String(m).padStart(2, " ") : String(m)) + " mesi: " + formatNumberIT(shown) + " €\n";
+      testo += m + " mesi: " + formatNumberIT(shown) + " €\n";
     }
     testo += "\n";
   }
