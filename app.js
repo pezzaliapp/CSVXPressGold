@@ -458,6 +458,16 @@ function aggiornaTabellaArticoli() {
       "<td><button type='button' onclick='rimuoviArticolo(" + i + ")'>Rimuovi</button></td>";
 
     tbody.appendChild(tr);
+
+// ✅ Se la riga non ha margine impostato (0/vuoto), imposta il default (margine cliente)
+// così: 1) lo vedi in tabella  2) i calcoli usano davvero quel valore
+try {
+  if (n(a.margine) <= 0) {
+    a.margine = getMargineCli();
+  }
+  var inpM = tr.querySelector("input[data-field='margine'][data-index='" + i + "']");
+  if (inpM) inpM.value = n(a.margine);
+} catch(e) {}
   }
 }
 
