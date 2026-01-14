@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-app="CSVXpressGold" data-ver="1.1.3">
+<html lang="it" data-app="CSVXpressGold" data-ver="1.1.4">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -204,17 +204,19 @@
       <div class="panel">
         <h3>Sconto Cliente Finale</h3>
 
-<div class="mini" style="margin-top:6px">
-  Il prezzo proposto è un <b>prezzo finale chiavi in mano</b>,
-  comprensivo di prodotto, trasporto e installazione.<br>
-  La percentuale di sconto mostrata rappresenta
-  <b>l’equivalente sul prezzo di listino del bene</b>.
-</div>
-      <div class="row">
-        <button id="btnPrevRiv" type="button">Apri Preventivo Rivenditore (Stampa)</button>
-        <button id="btnPrevCli" type="button">Apri Preventivo Cliente Finale (Stampa)</button>
+        <div class="mini" style="margin-top:6px">
+          Il prezzo proposto è un <b>prezzo finale chiavi in mano</b>,
+          comprensivo di prodotto, trasporto e installazione.<br>
+          La percentuale di sconto mostrata rappresenta
+          <b>l’equivalente sul prezzo di listino del bene</b>.
+        </div>
+
+        <div class="row">
+          <button id="btnPrevRiv" type="button">Apri Preventivo Rivenditore (Stampa)</button>
+          <button id="btnPrevCli" type="button">Apri Preventivo Cliente Finale (Stampa)</button>
+        </div>
+        <p class="hint">Su iPhone/iPad: Condividi → Stampa → Salva come PDF.</p>
       </div>
-      <p class="hint">Su iPhone/iPad: Condividi → Stampa → Salva come PDF.</p>
 
       <div class="panel" id="noleggio-panel">
         <h3>Noleggio Operativo (simulazione)</h3>
@@ -242,6 +244,59 @@
               <input type="checkbox" id="noleggioMostraDettagli" checked>
               Mostra spese/€/giorno/€/ora
             </label>
+          </div>
+        </div>
+
+        <!-- ✅ Opzioni avanzate noleggio -->
+        <div class="panel" style="margin-top:10px">
+          <h3 style="margin:0 0 8px 0">Opzioni Noleggio</h3>
+
+          <div class="grid">
+            <div>
+              <label>Giorni lavorativi / mese</label>
+              <input type="number" id="noleggioGiorniMese" value="22" step="1" min="1">
+              <div class="mini">Usato per calcolo €/giorno e €/ora.</div>
+            </div>
+
+            <div>
+              <label>Ore / giorno</label>
+              <input type="number" id="noleggioOreGiorno" value="8" step="1" min="1">
+              <div class="mini">Usato per calcolo €/ora.</div>
+            </div>
+
+            <div>
+              <label>RID € / mese</label>
+              <input type="number" id="noleggioRidMensile" value="4" step="0.01" min="0">
+              <div class="mini">Default: 4,00 € (spese incasso RID).</div>
+            </div>
+
+            <div class="checkline">
+              <label class="check">
+                <input type="checkbox" id="noleggioIncludiRID" checked>
+                Includi RID nel calcolo rata “all-in”
+              </label>
+              <label class="check">
+                <input type="checkbox" id="noleggioMostraTabellaCanoni" checked>
+                Mostra tabella canoni (12/18/24/36/48/60)
+              </label>
+            </div>
+          </div>
+
+          <!-- ✅ Tabella canoni -->
+          <div id="noleggioCanoniWrap" style="margin-top:10px;display:none">
+            <div class="mini" style="margin-bottom:6px">Canoni mensili (simulazione)</div>
+            <div class="table-wrap">
+              <table class="mini-table" id="noleggioCanoniTable">
+                <thead>
+                  <tr>
+                    <th>Durata</th>
+                    <th>Canone</th>
+                    <th>All-in (con RID)</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
