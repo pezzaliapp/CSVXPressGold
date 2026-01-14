@@ -924,6 +924,70 @@ function openPrintableQuote(variant) {
   html += "<div style='font-size:18px;margin-top:6px'><b>TOTALE:</b> " + totalWithVat.toFixed(2) + "€</div>";
   html += "</div>";
 
+  // -------------------------------
+// Box NOLEGGIO in stampa (opzionale)
+// -------------------------------
+var showRent = getEl("noleggioMostraNelPreventivo") && getEl("noleggioMostraNelPreventivo").checked;
+
+if (showRent) {
+  var durSel = getEl("noleggioDurata") ? parseInt(getEl("noleggioDurata").value, 10) : 24;
+  if (!durSel || durSel <= 0) durSel = 24;
+
+  var cfgP = getNoleggioConfig();
+  var outN = calcolaNoleggio(taxable, durSel, cfgP);
+
+  var showDettN = getEl("noleggioMostraDettagli") && getEl("noleggioMostraDettagli").checked;
+  var showTableN = getEl("noleggioMostraTabellaCanoni") && getEl("noleggioMostraTabellaCanoni").checked;
+
+  html += "<div class='box'>";
+  html += "<div style='font-weight:700;margin-bottom:6px'>Noleggio Operativo (simulazione)</div>";
+  html += "<div style='color:#444;font-size:12px'>(prezzi IVA esclusa)</div>";
+  html += "<div style='margin-top:6px'>Durata: <b>" + escapeHtml(String(durSel)) + " mesi</b></div>";
+
+  html += "<div style='margin-top:4px'>Rata mensile: <b>" + formatNumberIT(outN.rataMostrata) + " €</b> ";
+  html += "<span style='color:#444;font-size:12px'>" + (cfgP.includiRID ? "(incl. RID)" : "(RID non incluso)") + "</span>";
+  html += "</div>";
+
+  html += "<div style='margin-top:4px'>Spese di contratto: <b>" + formatNumberIT(outN.spese) + " €</b></div>";
+
+  if (showDettN) {
+    html += "<div style='margin-top:6px'>Costo giornaliero: <b>" + formatNumberIT(outN.giorno) + " €</b> — ";
+    html += "Costo orario: <b>" + formatNumberIT(outN.ora) + " €</b></div>";
+
+    html += "<div style='margin-top:6px;color:#444'>RID mensile: " + formatNumberIT(cfgP.ridMensile) + " € / mese ";
+    html += (cfgP.includiRID ? "(incluso)" : "(non incluso)") + "</div>";
+
+    html += "<div style='margin-top:4px;color:#6b7280;font-size:12px'>Parametri: " +
+            cfgP.giorniMese + " gg/mese — " + cfgP.oreGiorno + " ore/giorno</div>";
+  }
+
+  // Tabella canoni in stampa (stessa logica: UNA sola colonna "mostrata" coerente con includiRID)
+  if (showTableN && outN && outN.canoni) {
+    html += "<div style='margin-top:10px;font-weight:700'>Canoni mensili " + (cfgP.includiRID ? "(all-in)" : "(base)") + "</div>";
+    html += "<table style='width:100%;border-collapse:collapse;margin-top:6px'>";
+    html += "<thead><tr>";
+    html += "<th style='border:1px solid #ddd;padding:6px;background:#f3f5f7'>Durata</th>";
+    html += "<th style='border:1px solid #ddd;padding:6px;background:#f3f5f7'>Canone</th>";
+    html += "</tr></thead><tbody>";
+
+    var mesiList = [12, 18, 24, 36, 48, 60];
+    for (var mi = 0; mi < mesiList.length; mi++) {
+      var m = mesiList[mi];
+      var base = toNumber(outN.canoni[m] || 0);
+      var shown = cfgP.includiRID ? (base + toNumber(cfgP.ridMensile)) : base;
+
+      html += "<tr>";
+      html += "<td style='border:1px solid #ddd;padding:6px;text-align:center'>" + m + " mesi</td>";
+      html += "<td style='border:1px solid #ddd;padding:6px;text-align:right'>" + formatNumberIT(shown) + " €</td>";
+      html += "</tr>";
+    }
+
+    html += "</tbody></table>";
+  }
+
+  html += "</div>";
+}
+
   html += "<button class='btn' onclick='window.print()'>Stampa / Salva PDF</button>";
   html += "</body></html>";
 
