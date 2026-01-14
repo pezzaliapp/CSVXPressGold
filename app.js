@@ -443,7 +443,7 @@ function aggiornaTabellaArticoli() {
       "<td>" + n(a.prezzoLordo).toFixed(2) + "€</td>" +
       tdInp(i,"sconto", n(a.sconto), { min: 0, step: 0.01 }) +
       tdInp(i,"sconto2", n(a.sconto2), { min: 0, step: 0.01 }) +
-      tdInp(i,"margine", n(a.margine), { min: 0, step: 0.01 }) +
+     tdInp(i,"margine", (n(a.margine) > 0 ? n(a.margine) : getMargineDefaultCliente()), { min: 0, step: 0.01 }) +
       "<td>" + netto.toFixed(2) + "€</td>" +
       tdInp(i,"costoTrasporto", trp, { min: 0, step: 0.01 }) +
       tdInp(i,"costoInstallazione", inst, { min: 0, step: 0.01 }) +
