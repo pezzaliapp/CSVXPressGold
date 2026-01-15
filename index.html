@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>CSVXpressGold</title>
 
   <!-- PWA -->
@@ -64,37 +63,31 @@
         </label>
       </div>
 
-     <!-- ✅ INDUSTRIA 4.0 (AUTO KIT) -->
-<div class="panel" id="industria40-panel" style="margin-top:12px">
-  <h3>Industria 4.0</h3>
+      <!-- ✅ INDUSTRIA 4.0 (AUTO KIT) -->
+      <div class="panel" id="industria40-panel" style="margin-top:12px">
+        <h3>Industria 4.0</h3>
 
-  <label class="check" style="display:flex;gap:10px;align-items:center">
-    <input type="checkbox" id="toggleIndustria40">
-    <b>Rendi idoneo Industria 4.0</b>
-    <span class="mini" style="opacity:.8">
-      (aggiunge automaticamente il kit corretto dal listino)
-    </span>
-  </label>
+        <label class="check" style="display:flex;gap:10px;align-items:center">
+          <input type="checkbox" id="toggleIndustria40">
+          <b>Rendi idoneo Industria 4.0</b>
+          <span class="mini" style="opacity:.8">(aggiunge automaticamente il kit corretto dal listino)</span>
+        </label>
 
-  <label class="check" style="display:flex;gap:10px;align-items:center;margin-top:8px">
-    <input type="checkbox" id="toggleSmartApp40">
-    <b>Kit Smart App</b>
-    <span class="mini" style="opacity:.8">
-      (36 mesi traffico dati)
-    </span>
-  </label>
+        <label class="check" style="display:flex;gap:10px;align-items:center;margin-top:8px">
+          <input type="checkbox" id="toggleSmartApp40">
+          <b>Kit Smart App</b>
+          <span class="mini" style="opacity:.8">(36 mesi traffico dati)</span>
+        </label>
 
-  <div class="mini" style="margin-top:8px;opacity:.8">
-    Funziona solo se i codici dei kit sono presenti nel CSV caricato.
-  </div>
+        <div class="mini" style="margin-top:8px;opacity:.8">
+          Funziona solo se i codici dei kit sono presenti nel CSV caricato.
+        </div>
 
-  <!-- ℹ️ Guida normativa -->
-  <div class="row" style="margin-top:10px">
-    <button id="btnGuidaI40" type="button" class="secondary">
-      ℹ️ Guida Industria 4.0
-    </button>
-  </div>
-</div>
+        <!-- ℹ️ Guida normativa -->
+        <div class="row" style="margin-top:10px">
+          <button id="btnGuidaI40" type="button" class="secondary">ℹ️ Guida Industria 4.0</button>
+        </div>
+      </div>
     </section>
 
     <section id="listino-section" data-zone="selezione_listino">
@@ -279,7 +272,6 @@
           </div>
         </div>
 
-        <!-- ✅ Opzioni avanzate noleggio -->
         <div class="panel" style="margin-top:10px">
           <h3 style="margin:0 0 8px 0">Opzioni Noleggio</h3>
 
@@ -314,7 +306,6 @@
             </div>
           </div>
 
-          <!-- ✅ Tabella canoni -->
           <div id="noleggioCanoniWrap" style="margin-top:10px;display:none">
             <div class="mini" style="margin-bottom:6px">Canoni mensili (simulazione)</div>
             <div class="table-wrap">
@@ -371,7 +362,64 @@
     </section>
   </main>
 
-    <!-- Librerie -->
+  <!-- ✅ Footer firma/versione -->
+  <div id="appFooterVer" style="text-align:center;margin:24px 0 10px 0;font-size:12px;opacity:.55;user-select:none;">
+    © pezzaliapp.com — 2026 · CSVXpressGold
+  </div>
+
+  <!-- ✅ MODAL (UNA SOLA) -->
+  <div id="i40ModalOverlay" aria-hidden="true"
+       style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;padding:18px;box-sizing:border-box;align-items:center;justify-content:center;">
+    <div role="dialog" aria-modal="true" aria-labelledby="i40ModalTitle"
+         style="width:min(920px,100%);max-height:86vh;overflow:hidden;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.25);border:1px solid rgba(0,0,0,.10);display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e5e7eb;">
+        <div>
+          <div id="i40ModalTitle" style="font-weight:800;font-size:16px;">Guida Industria 4.0 (Italia)</div>
+          <div style="font-size:12px;opacity:.75;margin-top:2px;">Sintesi informativa • non costituisce consulenza fiscale/legale</div>
+        </div>
+        <button id="i40ModalClose" type="button" aria-label="Chiudi"
+                style="border:1px solid #e5e7eb;background:#f8fafc;padding:8px 10px;border-radius:10px;cursor:pointer;font-weight:700;">✕</button>
+      </div>
+
+      <div style="padding:14px 16px;overflow:auto;">
+        <div style="font-size:13px;line-height:1.55;color:#0f172a;white-space:pre-wrap;">
+<b>Cos’è (in pratica)</b>
+Industria 4.0 riguarda l’interconnessione dei beni strumentali (macchine/attrezzature) ai sistemi informatici aziendali, secondo requisiti tecnici e documentali previsti dalla normativa italiana.
+
+<b>Requisiti tipici (alto livello)</b>
+• Bene con caratteristiche “4.0” (hardware + software/controllo idonei)
+• Interconnessione al sistema aziendale (rete, tracciabilità, scambio dati)
+• Integrazione minima con la gestione (produzione/manutenzione/qualità, ecc.)
+• Identificazione univoca del bene (matricola/seriale)
+
+<b>Documentazione & certificazione (tutela)</b>
+• Il fornitore può rilasciare una scheda/attestazione tecnica del bene (con matricola)
+• La perizia / asseverazione o autocertificazione (se ammessa) è in capo al cliente finale, spesso con supporto del consulente/perito
+• L’effettiva idoneità e la corretta pratica fiscale dipendono dal caso specifico
+
+<b>Installazione e collegamenti</b>
+I collegamenti e la procedura di interconnessione devono essere coerenti con i requisiti richiesti (rete, sicurezza, accessi, logging, ecc.).
+Questa app non esegue verifiche: è uno strumento di preventivazione e supporto.
+
+<b>Nota importante</b>
+Nessuna promessa automatica di incentivo.
+Per conferme ufficiali: consulente fiscale/perito + documentazione normativa aggiornata.
+        </div>
+
+        <div style="margin-top:12px;padding:10px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;font-size:12px;line-height:1.5;">
+          <b>Disclaimer:</b> contenuto informativo generale. Non è consulenza fiscale/legale.
+          Verifica sempre requisiti e percentuali/aliquote con professionista e fonti ufficiali aggiornate.
+        </div>
+      </div>
+
+      <div style="padding:12px 16px;border-top:1px solid #e5e7eb;display:flex;gap:10px;justify-content:flex-end;">
+        <button id="i40ModalOk" type="button"
+                style="border:0;background:#0b1220;color:#fff;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:800;">Ho capito</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Librerie -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 
   <!-- Tracking bridge (GA4 + Clarity) -->
@@ -428,7 +476,6 @@
         open_preventivo: function(o){ o=o||{}; send('open_preventivo', { variant: o.variant || 'riv' }); },
         noleggio_txt: function(){ send('noleggio_txt', {}); },
 
-        // ✅ MODAL Industria 4.0
         i40_modal_open: function(){ send('i40_modal_open', {}); },
         i40_modal_close: function(){ send('i40_modal_close', {}); }
       };
@@ -439,142 +486,60 @@
           var z = els[i].getAttribute('data-zone');
           if (z) window.track.zone_view(z);
         }
-
-        // ✅ Binder "sicuro" per la modal (se presente in pagina)
-        // Richiede questi ID:
-        // btnGuidaI40, i40ModalOverlay, i40ModalClose, i40ModalOk
-        try {
-          var btn = document.getElementById('btnGuidaI40');
-          var ov  = document.getElementById('i40ModalOverlay');
-          var x   = document.getElementById('i40ModalClose');
-          var ok  = document.getElementById('i40ModalOk');
-
-          function openModal(){
-            if (!ov) return;
-            ov.style.display = 'flex';
-            ov.setAttribute('aria-hidden', 'false');
-            document.body.style.overflow = 'hidden';
-            if (window.track && window.track.i40_modal_open) window.track.i40_modal_open();
-          }
-
-          function closeModal(){
-            if (!ov) return;
-            ov.style.display = 'none';
-            ov.setAttribute('aria-hidden', 'true');
-            document.body.style.overflow = '';
-            if (window.track && window.track.i40_modal_close) window.track.i40_modal_close();
-          }
-
-          if (btn) btn.addEventListener('click', openModal, false);
-          if (x) x.addEventListener('click', closeModal, false);
-          if (ok) ok.addEventListener('click', closeModal, false);
-
-          if (ov) {
-            ov.addEventListener('click', function(e){
-              if (e.target === ov) closeModal();
-            }, false);
-          }
-
-          document.addEventListener('keydown', function(e){
-            if (e.key === 'Escape') closeModal();
-          }, false);
-        } catch (_) {}
       });
+    })();
+  </script>
+
+  <!-- ✅ Binder (UNO SOLO) + Footer release + VerBadge -->
+  <script>
+    (function(){
+      try{
+        var v = document.documentElement.getAttribute('data-ver') || '';
+        var footer = document.getElementById('appFooterVer');
+        if (footer && v) footer.textContent += ' · Release ' + v;
+
+        var badge = document.getElementById('verBadge');
+        if (badge && v) badge.textContent = 'Release ' + v;
+      }catch(_){}
+
+      var btn = document.getElementById('btnGuidaI40');
+      var ov  = document.getElementById('i40ModalOverlay');
+      var x   = document.getElementById('i40ModalClose');
+      var ok  = document.getElementById('i40ModalOk');
+
+      function openModal(){
+        if (!ov) return;
+        ov.style.display = 'flex';
+        ov.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        if (window.track && window.track.i40_modal_open) window.track.i40_modal_open();
+      }
+
+      function closeModal(){
+        if (!ov) return;
+        ov.style.display = 'none';
+        ov.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        if (window.track && window.track.i40_modal_close) window.track.i40_modal_close();
+      }
+
+      if (btn) btn.addEventListener('click', openModal, false);
+      if (x) x.addEventListener('click', closeModal, false);
+      if (ok) ok.addEventListener('click', closeModal, false);
+
+      if (ov) {
+        ov.addEventListener('click', function(e){
+          if (e.target === ov) closeModal();
+        }, false);
+      }
+
+      document.addEventListener('keydown', function(e){
+        if (e.key === 'Escape') closeModal();
+      }, false);
     })();
   </script>
 
   <!-- App -->
   <script src="app.js"></script>
-  <!-- ✅ MODAL: Guida Industria 4.0 -->
-<div id="i40ModalOverlay"
-     aria-hidden="true"
-     style="
-       display:none;
-       position:fixed;
-       inset:0;
-       background:rgba(0,0,0,.55);
-       z-index:9999;
-       padding:18px;
-       box-sizing:border-box;
-       align-items:center;
-       justify-content:center;
-     ">
-  <div role="dialog" aria-modal="true" aria-labelledby="i40ModalTitle"
-       style="
-         width:min(920px, 100%);
-         max-height:86vh;
-         overflow:hidden;
-         background:#fff;
-         border-radius:14px;
-         box-shadow:0 12px 40px rgba(0,0,0,.25);
-         border:1px solid rgba(0,0,0,.10);
-         display:flex;
-         flex-direction:column;
-       ">
-
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e5e7eb;">
-      <div>
-        <div id="i40ModalTitle" style="font-weight:800;font-size:16px;">Guida Industria 4.0 (Italia)</div>
-        <div style="font-size:12px;opacity:.75;margin-top:2px;">Sintesi informativa • non costituisce consulenza fiscale/legale</div>
-      </div>
-
-      <button id="i40ModalClose" type="button"
-              aria-label="Chiudi"
-              style="
-                border:1px solid #e5e7eb;
-                background:#f8fafc;
-                padding:8px 10px;
-                border-radius:10px;
-                cursor:pointer;
-                font-weight:700;
-              ">✕</button>
-    </div>
-
-    <div style="padding:14px 16px;overflow:auto;">
-      <div style="font-size:13px;line-height:1.55;color:#0f172a;white-space:pre-wrap;">
-<b>Cos’è (in pratica)</b>
-Industria 4.0 riguarda l’interconnessione dei beni strumentali (macchine/attrezzature) ai sistemi informatici aziendali, secondo requisiti tecnici e documentali previsti dalla normativa italiana.
-
-<b>Requisiti tipici (alto livello)</b>
-• Bene con caratteristiche “4.0” (hardware + software/controllo idonei)
-• Interconnessione al sistema aziendale (rete, tracciabilità, scambio dati)
-• Integrazione minima con la gestione (produzione/manutenzione/qualità, ecc.)
-• Identificazione univoca del bene (matricola/seriale)
-
-<b>Documentazione & certificazione (tutela)</b>
-• Il fornitore può rilasciare una scheda/attestazione tecnica del bene (con matricola)
-• La perizia / asseverazione o autocertificazione (se ammessa) è in capo al cliente finale, spesso con supporto del consulente/perito
-• L’effettiva idoneità e la corretta pratica fiscale dipendono dal caso specifico
-
-<b>Installazione e collegamenti</b>
-I collegamenti e la procedura di interconnessione devono essere coerenti con i requisiti richiesti (rete, sicurezza, accessi, logging, ecc.).
-Questa app non esegue verifiche: è uno strumento di preventivazione e supporto.
-
-<b>Nota importante</b>
-Nessuna promessa automatica di incentivo.
-Per conferme ufficiali: consulente fiscale/perito + documentazione normativa aggiornata.
-      </div>
-
-      <div style="margin-top:12px;padding:10px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;font-size:12px;line-height:1.5;">
-        <b>Disclaimer:</b> contenuto informativo generale. Non è consulenza fiscale/legale.
-        Verifica sempre requisiti e percentuali/aliquote con professionista e fonti ufficiali aggiornate.
-      </div>
-    </div>
-
-    <div style="padding:12px 16px;border-top:1px solid #e5e7eb;display:flex;gap:10px;justify-content:flex-end;">
-      <button id="i40ModalOk" type="button"
-              style="
-                border:0;
-                background:#0b1220;
-                color:#fff;
-                padding:10px 14px;
-                border-radius:12px;
-                cursor:pointer;
-                font-weight:800;
-              ">Ho capito</button>
-    </div>
-
-  </div>
-</div>
 </body>
 </html>
