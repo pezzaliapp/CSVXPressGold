@@ -485,5 +485,96 @@
 
   <!-- App -->
   <script src="app.js"></script>
+  <!-- ✅ MODAL: Guida Industria 4.0 -->
+<div id="i40ModalOverlay"
+     aria-hidden="true"
+     style="
+       display:none;
+       position:fixed;
+       inset:0;
+       background:rgba(0,0,0,.55);
+       z-index:9999;
+       padding:18px;
+       box-sizing:border-box;
+       align-items:center;
+       justify-content:center;
+     ">
+  <div role="dialog" aria-modal="true" aria-labelledby="i40ModalTitle"
+       style="
+         width:min(920px, 100%);
+         max-height:86vh;
+         overflow:hidden;
+         background:#fff;
+         border-radius:14px;
+         box-shadow:0 12px 40px rgba(0,0,0,.25);
+         border:1px solid rgba(0,0,0,.10);
+         display:flex;
+         flex-direction:column;
+       ">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e5e7eb;">
+      <div>
+        <div id="i40ModalTitle" style="font-weight:800;font-size:16px;">Guida Industria 4.0 (Italia)</div>
+        <div style="font-size:12px;opacity:.75;margin-top:2px;">Sintesi informativa • non costituisce consulenza fiscale/legale</div>
+      </div>
+
+      <button id="i40ModalClose" type="button"
+              aria-label="Chiudi"
+              style="
+                border:1px solid #e5e7eb;
+                background:#f8fafc;
+                padding:8px 10px;
+                border-radius:10px;
+                cursor:pointer;
+                font-weight:700;
+              ">✕</button>
+    </div>
+
+    <div style="padding:14px 16px;overflow:auto;">
+      <div style="font-size:13px;line-height:1.55;color:#0f172a;white-space:pre-wrap;">
+<b>Cos’è (in pratica)</b>
+Industria 4.0 riguarda l’interconnessione dei beni strumentali (macchine/attrezzature) ai sistemi informatici aziendali, secondo requisiti tecnici e documentali previsti dalla normativa italiana.
+
+<b>Requisiti tipici (alto livello)</b>
+• Bene con caratteristiche “4.0” (hardware + software/controllo idonei)
+• Interconnessione al sistema aziendale (rete, tracciabilità, scambio dati)
+• Integrazione minima con la gestione (produzione/manutenzione/qualità, ecc.)
+• Identificazione univoca del bene (matricola/seriale)
+
+<b>Documentazione & certificazione (tutela)</b>
+• Il fornitore può rilasciare una scheda/attestazione tecnica del bene (con matricola)
+• La perizia / asseverazione o autocertificazione (se ammessa) è in capo al cliente finale, spesso con supporto del consulente/perito
+• L’effettiva idoneità e la corretta pratica fiscale dipendono dal caso specifico
+
+<b>Installazione e collegamenti</b>
+I collegamenti e la procedura di interconnessione devono essere coerenti con i requisiti richiesti (rete, sicurezza, accessi, logging, ecc.).
+Questa app non esegue verifiche: è uno strumento di preventivazione e supporto.
+
+<b>Nota importante</b>
+Nessuna promessa automatica di incentivo.
+Per conferme ufficiali: consulente fiscale/perito + documentazione normativa aggiornata.
+      </div>
+
+      <div style="margin-top:12px;padding:10px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;font-size:12px;line-height:1.5;">
+        <b>Disclaimer:</b> contenuto informativo generale. Non è consulenza fiscale/legale.
+        Verifica sempre requisiti e percentuali/aliquote con professionista e fonti ufficiali aggiornate.
+      </div>
+    </div>
+
+    <div style="padding:12px 16px;border-top:1px solid #e5e7eb;display:flex;gap:10px;justify-content:flex-end;">
+      <button id="i40ModalOk" type="button"
+              style="
+                border:0;
+                background:#0b1220;
+                color:#fff;
+                padding:10px 14px;
+                border-radius:12px;
+                cursor:pointer;
+                font-weight:800;
+              ">Ho capito</button>
+    </div>
+
+  </div>
+</div>
 </body>
 </html>
