@@ -1256,8 +1256,8 @@ function downloadRentalTXT() {
   var showDett = getEl("noleggioMostraDettagli") && getEl("noleggioMostraDettagli").checked;
   var showTable = getEl("noleggioMostraTabellaCanoni") && getEl("noleggioMostraTabellaCanoni").checked;
 
-  var testo = "";
-  testo += "PREVENTIVO DI NOLEGGIO OPERATIVO BCC (simulazione)\n";
+  var o = "";
+  testo += "PREVENTIVO DI NOLEGGIO OPERATIVO (simulazione)\n"; // ✅ niente BCC
   testo += "-----------------------------------------------\n";
   testo += "(prezzi IVA esclusa)\n\n";
   testo += "Importo (imponibile): " + formatNumberIT(taxable) + " €\n";
