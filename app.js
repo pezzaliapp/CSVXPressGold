@@ -1256,8 +1256,8 @@ function downloadRentalTXT() {
   var showDett = getEl("noleggioMostraDettagli") && getEl("noleggioMostraDettagli").checked;
   var showTable = getEl("noleggioMostraTabellaCanoni") && getEl("noleggioMostraTabellaCanoni").checked;
 
-  var o = "";
-  testo += "PREVENTIVO DI NOLEGGIO OPERATIVO (simulazione)\n"; // ✅ niente BCC
+  var testo = "";
+  testo += "PREVENTIVO DI NOLEGGIO OPERATIVO (simulazione)\n";
   testo += "-----------------------------------------------\n";
   testo += "(prezzi IVA esclusa)\n\n";
   testo += "Importo (imponibile): " + formatNumberIT(taxable) + " €\n";
@@ -1286,7 +1286,7 @@ function downloadRentalTXT() {
   }
 
   try {
-    var blob = new Blob([testo], { type: "text/plain" });
+    var blob = new Blob([testo], { type: "text/plain;charset=utf-8" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
