@@ -371,7 +371,7 @@
     </section>
   </main>
 
-  <!-- Librerie -->
+    <!-- Librerie -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 
   <!-- Tracking bridge (GA4 + Clarity) -->
@@ -426,7 +426,11 @@
         report_whatsapp: function(o){ o=o||{}; send('report_whatsapp', { variant: o.variant || 'standard' }); },
         export_txt: function(o){ o=o||{}; send('export_txt', { variant: o.variant || 'standard' }); },
         open_preventivo: function(o){ o=o||{}; send('open_preventivo', { variant: o.variant || 'riv' }); },
-        noleggio_txt: function(){ send('noleggio_txt', {}); }
+        noleggio_txt: function(){ send('noleggio_txt', {}); },
+
+        // ✅ MODAL Industria 4.0
+        i40_modal_open: function(){ send('i40_modal_open', {}); },
+        i40_modal_close: function(){ send('i40_modal_close', {}); }
       };
 
       window.addEventListener('DOMContentLoaded', function(){
@@ -435,6 +439,46 @@
           var z = els[i].getAttribute('data-zone');
           if (z) window.track.zone_view(z);
         }
+
+        // ✅ Binder "sicuro" per la modal (se presente in pagina)
+        // Richiede questi ID:
+        // btnGuidaI40, i40ModalOverlay, i40ModalClose, i40ModalOk
+        try {
+          var btn = document.getElementById('btnGuidaI40');
+          var ov  = document.getElementById('i40ModalOverlay');
+          var x   = document.getElementById('i40ModalClose');
+          var ok  = document.getElementById('i40ModalOk');
+
+          function openModal(){
+            if (!ov) return;
+            ov.style.display = 'flex';
+            ov.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            if (window.track && window.track.i40_modal_open) window.track.i40_modal_open();
+          }
+
+          function closeModal(){
+            if (!ov) return;
+            ov.style.display = 'none';
+            ov.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+            if (window.track && window.track.i40_modal_close) window.track.i40_modal_close();
+          }
+
+          if (btn) btn.addEventListener('click', openModal, false);
+          if (x) x.addEventListener('click', closeModal, false);
+          if (ok) ok.addEventListener('click', closeModal, false);
+
+          if (ov) {
+            ov.addEventListener('click', function(e){
+              if (e.target === ov) closeModal();
+            }, false);
+          }
+
+          document.addEventListener('keydown', function(e){
+            if (e.key === 'Escape') closeModal();
+          }, false);
+        } catch (_) {}
       });
     })();
   </script>
