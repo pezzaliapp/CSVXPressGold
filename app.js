@@ -198,6 +198,12 @@ document.addEventListener("DOMContentLoaded", function () {
       renderItemsTable();
       updateTotals();
       updateRentalBox();
+      // ✅ se attivo, riallinea auto-kit Industria 4.0
+var chkI40 = getEl("toggleIndustria40");
+if (chkI40 && chkI40.checked) applyIndustria40();
+
+var chkSmart = getEl("toggleSmartApp40");
+if (chkSmart && chkSmart.checked) applySmartApp40();
 
       // ✅ se Industria 4.0 è attivo, riallinea i kit dopo cambio auto-servizi
       if (chkI40 && chkI40.checked) applyIndustria40();
@@ -252,18 +258,34 @@ document.addEventListener("DOMContentLoaded", function () {
   if (elTab) elTab.addEventListener("change", updateRentalBox, false);
 
   // Fix default cliente
-  var defaultCli = getEl("margineCliDefault");
-  if (defaultCli) defaultCli.addEventListener("input", function () {
+var defaultCli = getEl("margineCliDefault");
+if (defaultCli) {
+  defaultCli.addEventListener("input", function () {
     renderItemsTable();
     updateTotals();
     updateRentalBox();
+
+    // ✅ riallinea auto-kit Industria 4.0 se attivi
+    var chkI40 = getEl("toggleIndustria40");
+    if (chkI40 && chkI40.checked) applyIndustria40();
+
+    var chkSmart = getEl("toggleSmartApp40");
+    if (chkSmart && chkSmart.checked) applySmartApp40();
   }, false);
+}
 
-  renderItemsTable();
-  updateTotals();
-  updateRentalBox();
+// Render iniziale
+renderItemsTable();
+updateTotals();
+updateRentalBox();
+
+// ✅ allineamento iniziale auto-kit (utile dopo reload / CSV già caricato)
+var chkI40Init = getEl("toggleIndustria40");
+if (chkI40Init && chkI40Init.checked) applyIndustria40();
+
+var chkSmartInit = getEl("toggleSmartApp40");
+if (chkSmartInit && chkSmartInit.checked) applySmartApp40();
 });
-
 // -------------------------------
 // CSV upload
 // -------------------------------
