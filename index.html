@@ -63,6 +63,27 @@
           Mostra Trasporto/Installazione nei report
         </label>
       </div>
+
+      <!-- ✅ INDUSTRIA 4.0 (AUTO KIT) -->
+      <div class="panel" id="industria40-panel" style="margin-top:12px">
+        <h3>Industria 4.0</h3>
+
+        <label class="check" style="display:flex;gap:10px;align-items:center">
+          <input type="checkbox" id="toggleIndustria40">
+          <b>Rendi idoneo Industria 4.0</b>
+          <span class="mini" style="opacity:.8">(aggiunge automaticamente il kit corretto dal listino)</span>
+        </label>
+
+        <label class="check" style="display:flex;gap:10px;align-items:center;margin-top:8px">
+          <input type="checkbox" id="toggleSmartApp40">
+          <b>Kit Smart App</b>
+          <span class="mini" style="opacity:.8">(36 mesi traffico dati)</span>
+        </label>
+
+        <div class="mini" style="margin-top:8px;opacity:.8">
+          Funziona solo se i codici dei kit sono presenti nel CSV caricato.
+        </div>
+      </div>
     </section>
 
     <section id="listino-section" data-zone="selezione_listino">
@@ -294,7 +315,6 @@
                     <th>All-in (con RID)</th>
                   </tr>
                 </thead>
-                <!-- ✅ FIX: tbody con id atteso da app.js -->
                 <tbody id="noleggioCanoniTbody"></tbody>
               </table>
             </div>
