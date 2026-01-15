@@ -164,6 +164,13 @@ document.addEventListener("DOMContentLoaded", function () {
   var btnManual = getEl("btnManual");
   if (btnManual) btnManual.addEventListener("click", showManualItemRow, false);
 
+  // ✅ Industria 4.0 (checkbox)
+  var chkI40 = getEl("toggleIndustria40");
+  if (chkI40) chkI40.addEventListener("change", applyIndustria40, false);
+
+  var chkSmart = getEl("toggleSmartApp40");
+  if (chkSmart) chkSmart.addEventListener("change", applySmartApp40, false);
+
   // Auto servizi
   var toggleCosti = getEl("toggleCosti");
   if (toggleCosti) {
@@ -191,6 +198,10 @@ document.addEventListener("DOMContentLoaded", function () {
       renderItemsTable();
       updateTotals();
       updateRentalBox();
+
+      // ✅ se Industria 4.0 è attivo, riallinea i kit dopo cambio auto-servizi
+      if (chkI40 && chkI40.checked) applyIndustria40();
+      if (chkSmart && chkSmart.checked) applySmartApp40();
     }, false);
   }
 
@@ -349,6 +360,131 @@ function addItemFromPriceList() {
 
   quoteItems.push(newItem);
   articoliAggiunti = quoteItems;
+
+  renderItemsTable();
+  updateTotals();
+  updateRentalBox();
+}
+// ===============================
+// INDUSTRIA 4.0 — Auto suggest/add dal listino
+// ===============================
+
+// Codici kit (come da tuo listino)
+var I40 = {
+  PUMA: "20100376",
+  CM1200BB: "20100377",
+  SUPERVIGOR: "20100378",
+  KIT_L3300_L3400_PFA4050: "25100299",
+  KIT_L1500A_WL85MOVE: "25100300",
+  SMART_APP_36M: "21100375"
+};
+
+// Tag interno per capire cosa è stato aggiunto automaticamente
+var AUTO_TAG = "__auto_i40";
+
+// Trova kit necessari in base agli articoli inseriti
+function detectI40NeededCodes() {
+  var needed = [];
+
+  function add(code) {
+    if (needed.indexOf(code) === -1) needed.push(code);
+  }
+
+  for (var i = 0; i < quoteItems.length; i++) {
+    var it = quoteItems[i] || {};
+    var hay = ((it.codice || "") + " " + (it.descrizione || "")).toUpperCase();
+
+    if (hay.indexOf("PUMA") > -1) add(I40.PUMA);
+    if (hay.indexOf("CM 1200BB") > -1 || hay.indexOf("CM1200BB") > -1) add(I40.CM1200BB);
+
+    if (hay.indexOf("SUPER VIGOR 2450N") > -1 || hay.indexOf("SUPER VIGOR 60") > -1) add(I40.SUPERVIGOR);
+
+    if (hay.indexOf("L3300") > -1 || hay.indexOf("L3400") > -1 || hay.indexOf("PFA40") > -1 || hay.indexOf("PFA50") > -1) {
+      add(I40.KIT_L3300_L3400_PFA4050);
+    }
+
+    if (hay.indexOf("L1500A") > -1 || hay.indexOf("WL 85 MOVE") > -1 || hay.indexOf("WL85 MOVE") > -1 || hay.indexOf("WL85MOVE") > -1) {
+      add(I40.KIT_L1500A_WL85MOVE);
+    }
+  }
+
+  return needed;
+}
+
+// Aggiunge un articolo dal listino cercando per codice
+function addItemByCodeFromPriceList(code, autoTagValue) {
+  code = (code || "").trim();
+  if (!code) return false;
+
+  var base = findInPriceList(code);
+  if (!base) return false;
+
+  // evita duplicati
+  for (var i = 0; i < quoteItems.length; i++) {
+    if ((quoteItems[i].codice || "").trim() === code) return true;
+  }
+
+  var newItem = {};
+  for (var k in base) if (base.hasOwnProperty(k)) newItem[k] = base[k];
+
+  newItem.quantita = 1;
+  newItem.sconto = toNumber(newItem.sconto || 0);
+  newItem.sconto2 = toNumber(newItem.sconto2 || 0);
+  newItem.margine = toNumber(newItem.margine || 0);
+
+  newItem[AUTO_TAG] = autoTagValue || "i40";
+
+  if (!autoFillServices) {
+    newItem.costoTrasporto = 0;
+    newItem.costoInstallazione = 0;
+  }
+
+  quoteItems.push(newItem);
+  return true;
+}
+
+// Rimuove SOLO i kit aggiunti automaticamente
+function removeAutoI40Items(autoTagValue) {
+  var tag = autoTagValue || "i40";
+  for (var i = quoteItems.length - 1; i >= 0; i--) {
+    var it = quoteItems[i];
+    if (it && it[AUTO_TAG] === tag) quoteItems.splice(i, 1);
+  }
+}
+
+function applyIndustria40() {
+  var chk = getEl("toggleIndustria40");
+  if (!chk) return;
+
+  if (!chk.checked) {
+    removeAutoI40Items("i40");
+    renderItemsTable();
+    updateTotals();
+    updateRentalBox();
+    return;
+  }
+
+  var needed = detectI40NeededCodes();
+  for (var i = 0; i < needed.length; i++) addItemByCodeFromPriceList(needed[i], "i40");
+
+  renderItemsTable();
+  updateTotals();
+  updateRentalBox();
+}
+
+function applySmartApp40() {
+  var chk = getEl("toggleSmartApp40");
+  if (!chk) return;
+
+  if (!chk.checked) {
+    removeAutoI40Items("smartapp40");
+    renderItemsTable();
+    updateTotals();
+    updateRentalBox();
+    return;
+  }
+
+  addItemByCodeFromPriceList(I40.SMART_APP_36M, "smartapp40");
 
   renderItemsTable();
   updateTotals();
